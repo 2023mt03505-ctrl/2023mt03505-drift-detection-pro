@@ -1,0 +1,44 @@
+provider "azurerm" {
+  features {}
+
+  subscription_id = "792ae578-bb37-478b-8f7e-8fe08c0885c9"
+  tenant_id       = "e24ac094-efd8-4a6b-98d5-a129b32a8c9a"
+}
+
+# Create resource group in an allowed location (instead of using existing one)
+resource "azurerm_resource_group" "rg" {
+  name     = "rg-2023mt03505-eastus"
+  location = "East US" # ✅ Use a region allowed for your subscription
+}
+
+# Reference existing storage account by ID
+data "azurerm_storage_account" "existing_sa" {
+  name                = "storage2023mt03505"
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
+# Storage container (private access)
+resource "azurerm_storage_container" "secure_container" {
+  name                  = "secure-container"
+  storage_account_id    = data.azurerm_storage_account.existing_sa.id # ✅ use ID not name
+  container_access_type = "private"
+}
+
+# Network Security Group with deny-SSH rule
+resource "azurerm_network_security_group" "secure_nsg" {
+  name                = "nsg-secure"
+  location            = azurerm_resource_group.rg.location # ✅ ties NSG to allowed region
+  resource_group_name = azurerm_resource_group.rg.name
+
+  security_rule {
+    name                       = "Deny_SSH_All"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Deny"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "22"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
