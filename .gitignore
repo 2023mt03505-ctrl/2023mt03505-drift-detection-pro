@@ -1,38 +1,75 @@
+########################
+# Terraform
+########################
 # Local .terraform directories
-**/.terraform/*
+.terraform/
 
-# .tfstate files
+# Terraform state files
 *.tfstate
 *.tfstate.*
 
-# Crash log files
+# Crash logs
 crash.log
 crash.*.log
 
-# Exclude all terraform plan output files
+# Terraform plan files
 *.tfplan
+*.tfplan.*
 
-# Ignore override files as they are usually used to override resources locally
+# Override files (not meant to be committed)
 override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
 
-# Ignore CLI configuration files
-.terraformrc
-terraform.rc
+# Provider binaries (these are auto-downloaded by terraform init)
+terraform-provider-*
 
-# Ignore provider plugins (downloaded automatically)
-.terraform/
+# Module archives
+*.zip
+*.tar.gz
 
-# Ignore lock file (optional, commit if you want reproducible builds)
-.terraform.lock.hcl
-
-# Executables / binaries
-*.exe
-*.dll
-*.so
-*.dylib
-
+########################
+# GitHub Actions / CI
+########################
 # Logs
 *.log
+
+# Local runner files
+.github/local-env/
+.github/secrets/
+
+########################
+# OS / Editor junk
+########################
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# VS Code
+.vscode/
+.history/
+*.code-workspace
+
+# JetBrains IDEs
+.idea/
+*.iml
+
+########################
+# Python (if you add scripts later)
+########################
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+.env
+.venv
