@@ -1,0 +1,45 @@
+name: Drift Detection & Auto-Remediation
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # every 15 minutes
+  workflow_dispatch:          # allow manual run from Actions tab
+
+permissions:
+  id-token: write   # required for OIDC
+  contents: read
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout repo
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. OIDC login to Azure
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:  ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # 3. Setup Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.7
+
+      # 4. Install Conftest (OPA CLI)
+      - name: Install Conftest
+        run: |
+          curl -L https://github.com/open-policy-agent/conftest/releases/latest/download/conftest_Linux_x86_64.tar.gz -o conftest.tgz
+          tar xzf conftest.tgz
+          sudo mv conftest /usr/local/bin/
+
+      # 5. Run drift detection + auto-remediation
+      - name: Drift check & remediate
+        run: |
+          bash scripts/drift-check.sh
