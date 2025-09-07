@@ -32,7 +32,7 @@ jobs:
         with:
           terraform_version: 1.9.7
 
-      # 3.2 TF conf
+      # 3.2 TF config
       - name: Terraform Init
         run: terraform init -reconfigure
         env:
