@@ -23,7 +23,7 @@ jobs:
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id:  ${{ secrets.AZURE_TENANT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       # 3. Setup Terraform
@@ -35,7 +35,9 @@ jobs:
       # 4. Install Conftest (OPA CLI)
       - name: Install Conftest
         run: |
-          curl -L https://github.com/open-policy-agent/conftest/releases/latest/download/conftest_Linux_x86_64.tar.gz -o conftest.tgz
+          # Use a pinned version to avoid HTML redirect issues
+          CONFTEST_VERSION="v0.43.0"
+          curl -L -o conftest.tgz https://github.com/open-policy-agent/conftest/releases/download/${CONFTEST_VERSION}/conftest_Linux_x86_64.tar.gz
           tar xzf conftest.tgz
           sudo mv conftest /usr/local/bin/
 
