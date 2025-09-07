@@ -35,11 +35,11 @@ jobs:
       # 4. Install Conftest (OPA CLI)
       - name: Install Conftest
         run: |
-          # Use a pinned version to avoid HTML redirect issues
-          CONFTEST_VERSION="v0.43.0"
-          curl -L -o conftest.tgz https://github.com/open-policy-agent/conftest/releases/download/${CONFTEST_VERSION}/conftest_Linux_x86_64.tar.gz
-          tar xzf conftest.tgz
+          CONFTEST_VERSION=0.52.0
+          curl -L https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz -o conftest.tgz
+          tar -xzf conftest.tgz
           sudo mv conftest /usr/local/bin/
+          conftest --version
 
       # 5. Run drift detection + auto-remediation
       - name: Drift check & remediate
