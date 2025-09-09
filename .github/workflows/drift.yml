@@ -1,18 +1,8 @@
-name: Drift Detection & Auto-Remediation
-
-on:
-  schedule:
-    - cron: "*/15 * * * *"   # every 15 minutes
-  workflow_dispatch:
-
-permissions:
-  id-token: write
-  contents: read
-
 jobs:
   drift:
     runs-on: ubuntu-latest
-    env:
+
+    env:   # 👈 this applies to ALL steps including your script
       ARM_USE_OIDC: true
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -22,8 +12,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Optional: only needed if you run `az` commands, not Terraform
-      - name: Azure login (OIDC)
+      - name: Azure login (OIDC)   # optional if you need az CLI
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
