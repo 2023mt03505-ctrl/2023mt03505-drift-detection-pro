@@ -1,9 +1,21 @@
+name: Drift Detection & Auto-Remediation
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  id-token: write        # required for OIDC
+  contents: read
+
 jobs:
   drift:
     runs-on: ubuntu-latest
 
-    env:   # 👈 Global env (good to keep for consistency)
-      ARM_USE_OIDC: true
+    # job-level env (convenience). We'll also re-export per-step to be 100% safe
+    env:
+      ARM_USE_OIDC: 'true'
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
@@ -12,29 +24,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Debug env   # 🔎 helpful debug
+      - name: Verify ARM env presence (fail early if missing)
         run: |
-          echo "ARM_CLIENT_ID=$ARM_CLIENT_ID"
-          echo "ARM_TENANT_ID=$ARM_TENANT_ID"
-          echo "ARM_SUBSCRIPTION_ID=$ARM_SUBSCRIPTION_ID"
-
-      # ❌ Optional: remove if you don’t need `az` CLI
-      - name: Azure login (OIDC)
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.ARM_CLIENT_ID }}
-          tenant-id: ${{ secrets.ARM_TENANT_ID }}
-          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          for v in ARM_CLIENT_ID ARM_TENANT_ID ARM_SUBSCRIPTION_ID ARM_USE_OIDC; do
+            if [ -z "${!v}" ]; then
+              echo "$v => MISSING"
+              missing=true
+            else
+              echo "$v => PRESENT"
+            fi
+          done
+          if [ "${missing:-}" = true ]; then
+            echo "One or more ARM_* env vars are missing. Check repo secrets (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.7
 
-      - name: Terraform Init
+      - name: Terraform Init (explicit env)
         run: terraform init -reconfigure
-        env:   # 👈 explicitly re-export for safety
-          ARM_USE_OIDC: true
+        env:
+          ARM_USE_OIDC: 'true'
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
@@ -49,8 +62,8 @@ jobs:
 
       - name: Drift check & remediate
         run: bash scripts/drift-check.sh
-        env:   # 👈 make sure Terraform sees these inside your script
-          ARM_USE_OIDC: true
+        env:
+          ARM_USE_OIDC: 'true'
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
