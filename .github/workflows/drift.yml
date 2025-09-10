@@ -2,7 +2,7 @@ jobs:
   drift:
     runs-on: ubuntu-latest
 
-    env:   # 👈 These are picked up automatically by Terraform
+    env:   # 👈 Global env (good to keep for consistency)
       ARM_USE_OIDC: true
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
@@ -12,13 +12,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Debug env   # 🔎 debug only
+      - name: Debug env   # 🔎 helpful debug
         run: |
           echo "ARM_CLIENT_ID=$ARM_CLIENT_ID"
           echo "ARM_TENANT_ID=$ARM_TENANT_ID"
           echo "ARM_SUBSCRIPTION_ID=$ARM_SUBSCRIPTION_ID"
 
-      # 🔹 Optional: keep this only if your script calls `az` CLI
+      # ❌ Optional: remove if you don’t need `az` CLI
       - name: Azure login (OIDC)
         uses: azure/login@v2
         with:
@@ -33,6 +33,11 @@ jobs:
 
       - name: Terraform Init
         run: terraform init -reconfigure
+        env:   # 👈 explicitly re-export for safety
+          ARM_USE_OIDC: true
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
 
       - name: Install Conftest
         run: |
@@ -44,3 +49,8 @@ jobs:
 
       - name: Drift check & remediate
         run: bash scripts/drift-check.sh
+        env:   # 👈 make sure Terraform sees these inside your script
+          ARM_USE_OIDC: true
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
