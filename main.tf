@@ -1,7 +1,6 @@
 provider "azurerm" {
   features {}
-  subscription_id = "d3680142-57f6-4ea0-88f2-e5429dd4c8c5"
-  tenant_id       = "1bce831e-c832-44ba-bd99-7fc78674a840"
+  
   resource_provider_registrations = "none"
 }
 
