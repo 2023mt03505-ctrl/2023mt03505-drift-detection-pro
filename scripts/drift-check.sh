@@ -2,13 +2,14 @@
 set -e
 
 # fail fast with clear message if required envs missing
-: "${ARM_CLIENT_ID:?Missing ARM_CLIENT_ID - set this as a GitHub secret named ARM_CLIENT_ID}"
-: "${ARM_TENANT_ID:?Missing ARM_TENANT_ID - set this as a GitHub secret named ARM_TENANT_ID}"
-: "${ARM_SUBSCRIPTION_ID:?Missing ARM_SUBSCRIPTION_ID - set this as a GitHub secret named ARM_SUBSCRIPTION_ID}"
+: "${ARM_CLIENT_ID:?Missing ARM_CLIENT_ID}"
+: "${ARM_TENANT_ID:?Missing ARM_TENANT_ID}"
+: "${ARM_SUBSCRIPTION_ID:?Missing ARM_SUBSCRIPTION_ID}"
 
 export ARM_USE_OIDC="${ARM_USE_OIDC:-true}"
 
-terraform init -reconfigure
+# ✅ Init already done in workflow → do NOT run terraform init here
+
 terraform plan -refresh-only -out=tfplan || true
 terraform show -json tfplan > tfplan.json
 
