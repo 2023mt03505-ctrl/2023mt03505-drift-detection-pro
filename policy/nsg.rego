@@ -14,7 +14,7 @@ deny[msg] {
   rule.direction == "Inbound"
   rule.source_address_prefix == "0.0.0.0/0"
 
-  msg := sprintf("❌ NSG %s allows SSH from world: %s", [rc.address, rule.name])
+  msg := sprintf("❌ NSG %s allows SSH from world (0.0.0.0/0): %s", [rc.address, rule.name])
 }
 
 deny[msg] {
@@ -30,7 +30,7 @@ deny[msg] {
   rule.direction == "Inbound"
   rule.source_address_prefix == "*"
 
-  msg := sprintf("❌ NSG %s allows SSH from world: %s", [rc.address, rule.name])
+  msg := sprintf("❌ NSG %s allows SSH from world (*): %s", [rc.address, rule.name])
 }
 
 # ⚠️ Safe drift → only tag update
