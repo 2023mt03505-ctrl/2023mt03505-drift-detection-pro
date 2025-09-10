@@ -12,6 +12,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Debug env   # 🔎 debug only
+        run: |
+          echo "ARM_CLIENT_ID=$ARM_CLIENT_ID"
+          echo "ARM_TENANT_ID=$ARM_TENANT_ID"
+          echo "ARM_SUBSCRIPTION_ID=$ARM_SUBSCRIPTION_ID"
+
       # 🔹 Optional: keep this only if your script calls `az` CLI
       - name: Azure login (OIDC)
         uses: azure/login@v2
