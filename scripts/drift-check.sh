@@ -13,6 +13,9 @@ export ARM_USE_OIDC="${ARM_USE_OIDC:-true}"
 terraform plan -refresh-only -out=tfplan || true
 terraform show -json tfplan > tfplan.json
 
+echo "🔎 Verifying Conftest policies..."
+conftest verify --policy policy/
+
 echo "🔎 Running drift classification with Conftest..."
 set +e
 output=$(conftest test tfplan.json --policy policy/ --all-namespaces 2>&1)
