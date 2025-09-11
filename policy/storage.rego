@@ -1,20 +1,41 @@
 package terraform.storage
 
-# Unsafe drift → public container
+# ❌ Deny public access
 deny[msg] {
   some i
   rc := input.resource_changes[i]
-  rc.type == "azurerm_storage_container"
-  rc.change.after.container_access_type != "private"
-  msg = sprintf("❌ Storage container %s is public! Must be private.", [rc.address])
+  rc.type == "azurerm_storage_account"
+
+  rc.change.after.allow_blob_public_access == true
+  msg := sprintf("❌ Storage Account %s allows public blob access", [rc.address])
 }
 
-# Safe drift → just tags changed
-warn[msg] {
+# ❌ Enforce HTTPS only
+deny[msg] {
   some i
   rc := input.resource_changes[i]
-  rc.type == "azurerm_storage_container"
-  rc.change.actions[_] == "update"
-  rc.change.before.tags != rc.change.after.tags
-  msg = sprintf("⚠️ Safe drift: Tags modified on %s", [rc.address])
+  rc.type == "azurerm_storage_account"
+
+  rc.change.after.enable_https_traffic_only == false
+  msg := sprintf("❌ Storage Account %s has HTTPS traffic disabled", [rc.address])
+}
+
+# ❌ Enforce TLS1_2 minimum
+deny[msg] {
+  some i
+  rc := input.resource_changes[i]
+  rc.type == "azurerm_storage_account"
+
+  rc.change.after.min_tls_version != "TLS1_2"
+  msg := sprintf("❌ Storage Account %s does not enforce TLS1_2", [rc.address])
+}
+
+# ❌ Replication type must exist
+deny[msg] {
+  some i
+  rc := input.resource_changes[i]
+  rc.type == "azurerm_storage_account"
+
+  not rc.change.after.account_replication_type
+  msg := sprintf("❌ Storage Account %s missing replication type", [rc.address])
 }
