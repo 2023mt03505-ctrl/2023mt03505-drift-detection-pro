@@ -1,6 +1,6 @@
 package terraform.nsg
 
-# ❌ Unsafe drift → SSH open to world (0.0.0.0/0 or *)
+# ❌ Unsafe drift → SSH open to world (0.0.0.0/0)
 deny[msg] {
   some i
   rc := input.resource_changes[i]
@@ -12,9 +12,26 @@ deny[msg] {
   rule.destination_port_range == "22"
   rule.access == "Allow"
   rule.direction == "Inbound"
-  rule.source_address_prefix in {"0.0.0.0/0", "*"}
+  rule.source_address_prefix == "0.0.0.0/0"
 
-  msg := sprintf("❌ NSG %s allows SSH from world: %s", [rc.address, rule.name])
+  msg := sprintf("❌ NSG %s allows SSH from world (0.0.0.0/0): %s", [rc.address, rule.name])
+}
+
+# ❌ Unsafe drift → SSH open to world (*)
+deny[msg] {
+  some i
+  rc := input.resource_changes[i]
+  rc.type == "azurerm_network_security_group"
+
+  rules := rc.change.after.security_rule
+  rule := rules[_]
+
+  rule.destination_port_range == "22"
+  rule.access == "Allow"
+  rule.direction == "Inbound"
+  rule.source_address_prefix == "*"
+
+  msg := sprintf("❌ NSG %s allows SSH from world (*): %s", [rc.address, rule.name])
 }
 
 # ⚠️ Safe drift → only tag update
