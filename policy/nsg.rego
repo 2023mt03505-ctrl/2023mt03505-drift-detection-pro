@@ -6,20 +6,23 @@ deny[msg] {
   rc := input.resource_changes[i]
   rc.type == "azurerm_network_security_group"
 
+  # Only check resources with after state (ignore destroyed)
+  rc.change.after != null
   rules := rc.change.after.security_rule
   rule := rules[_]
 
-  rule.destination_port_range == "22"
   rule.access == "Allow"
   rule.direction == "Inbound"
+  rule.destination_port_range == "22"
 
-  allowed := {"0.0.0.0/0", "*"}
-  allowed[rule.source_address_prefix]   # ✅ valid syntax for membership check
+  # Match any world-wide source
+  src := rule.source_address_prefix
+  src == "*"  # or "0.0.0.0/0"
 
   msg := sprintf("❌ NSG %s allows SSH from world: %s", [rc.address, rule.name])
 }
 
-# ⚠️ Safe drift → only tag update
+# ⚠️ Safe drift → only tags update
 warn[msg] {
   some i
   rc := input.resource_changes[i]
