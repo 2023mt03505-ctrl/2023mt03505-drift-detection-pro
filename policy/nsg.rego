@@ -1,36 +1,58 @@
 package terraform.nsg
 
-# ❌ Unsafe drift → SSH open to world (0.0.0.0/0 or *)
+action_allowed(rc) {
+  a := rc.change.actions[_]
+  a in {"update","create","replace"}
+}
+
+source_is_world(r) {
+  s := r.source_address_prefix
+  s == "*"  # wildcard
+}
+source_is_world(r) {
+  s := r.source_address_prefix
+  s == "0.0.0.0/0"
+}
+
+unsafe_rule(r) {
+  r.direction == "Inbound"
+  r.destination_port_range == "22"
+  r.access == "Allow"
+  source_is_world(r)
+}
+
 deny[msg] {
   some i
   rc := input.resource_changes[i]
   rc.type == "azurerm_network_security_group"
+  action_allowed(rc)
 
-  some action
-  action := rc.change.actions[_]
-  action == "update" or action == "create" or action == "replace"
+  rc.change.before != null
+  rule := rc.change.before.security_rule[_]
+  unsafe_rule(rule)
 
-  rule := rc.change.after.security_rule[_]
-  rule.access == "Allow"
-  rule.direction == "Inbound"
-  rule.destination_port_range == "22"
-
-  allowed := {"0.0.0.0/0", "*"}
-  allowed[rule.source_address_prefix]
-
-  msg := sprintf("❌ NSG %s allows SSH from world: %s", [rc.address, rule.name])
+  msg := sprintf("❌ NSG %s has insecure SSH rule (before): %s", [rc.address, rule.name])
 }
 
-# ⚠️ Safe drift → only tag update
+deny[msg] {
+  some i
+  rc := input.resource_changes[i]
+  rc.type == "azurerm_network_security_group"
+  action_allowed(rc)
+
+  rc.change.after != null
+  rule := rc.change.after.security_rule[_]
+  unsafe_rule(rule)
+
+  msg := sprintf("❌ NSG %s will have insecure SSH rule (after): %s", [rc.address, rule.name])
+}
+
 warn[msg] {
   some i
   rc := input.resource_changes[i]
   rc.type == "azurerm_network_security_group"
-  some action
-  action := rc.change.actions[_]
-  action == "update" or action == "create" or action == "replace"
-
+  action_allowed(rc)
+  rc.change.before != null
   rc.change.before.tags != rc.change.after.tags
-
   msg := sprintf("⚠️ Safe drift: Tags modified on %s", [rc.address])
 }
