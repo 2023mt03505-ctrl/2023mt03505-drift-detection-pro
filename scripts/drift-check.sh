@@ -8,21 +8,24 @@ set -euo pipefail
 export ARM_USE_OIDC="${ARM_USE_OIDC:-true}"
 
 echo "🔄 Terraform init..."
-terraform init -reconfigure -input=false -no-color
+terraform init -reconfigure
 
 echo "🔄 Running Terraform plan for drift detection..."
-terraform plan -refresh=true -out=tfplan.auto -input=false -no-color
+terraform plan -refresh=true -out=tfplan.auto -input=false
 
 echo "🔹 Converting plan to JSON..."
 terraform show -json tfplan.auto > tfplan.json
 
-# Safe JSON debug (human-readable)
-echo "🔹 Preview of Terraform resource_changes:"
-jq '.resource_changes[] | {address, type, actions: .change.actions}' tfplan.json || true
+# Safe JSON debug
+echo "🔹 Full Terraform resource_changes preview:"
+jq '.resource_changes' tfplan.json || true
+
+# Prepare JSON for Conftest
+cp tfplan.json tfplan.conftest.json
 
 echo "🔎 Running Conftest policies..."
 set +e
-conftest_output=$(conftest test tfplan.json --policy policy/ --all-namespaces 2>&1)
+conftest_output=$(conftest test tfplan.conftest.json --policy policy/ --all-namespaces 2>&1)
 conftest_status=$?
 set -e
 
@@ -40,4 +43,4 @@ else
 fi
 
 echo "🧹 Post-job cleanup: clearing Azure CLI accounts"
-az account clear || true
+az account clear
