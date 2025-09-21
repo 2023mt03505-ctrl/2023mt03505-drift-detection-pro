@@ -13,7 +13,8 @@ deny[msg] {
   rule.access == "Allow"
   rule.direction == "Inbound"
 
-  {"0.0.0.0/0", "*"}[rule.source_address_prefix]   # ✅ fixed syntax
+  allowed := {"0.0.0.0/0", "*"}
+  allowed[rule.source_address_prefix]   # ✅ valid syntax for membership check
 
   msg := sprintf("❌ NSG %s allows SSH from world: %s", [rc.address, rule.name])
 }
