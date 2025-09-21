@@ -1,41 +1,49 @@
 #!/bin/bash
 set -euo pipefail
 
-# Fail fast if required env vars missing
+# 🚨 Fail fast if required envs missing
 : "${ARM_CLIENT_ID:?Missing ARM_CLIENT_ID}"
 : "${ARM_TENANT_ID:?Missing ARM_TENANT_ID}"
 : "${ARM_SUBSCRIPTION_ID:?Missing ARM_SUBSCRIPTION_ID}"
 export ARM_USE_OIDC="${ARM_USE_OIDC:-true}"
 
-echo "🔄 Running refresh-only plan for drift detection..."
-terraform plan -refresh-only -out=tfplan.refresh || true
-terraform show -json tfplan.refresh > tfplan.json
+echo "🔄 Terraform init..."
+terraform init -reconfigure
 
-# Debugging: safely iterate over resource_changes even if null
+# Step 1: Generate a normal plan JSON for Conftest
+echo "🔄 Running Terraform plan for drift detection..."
+terraform plan -out=tfplan.auto -input=false
+terraform show -json tfplan.auto > tfplan.json
+
+# Step 2: Debug JSON structure for GitHub Actions logs
 echo "🔹 Previewing Terraform JSON plan structure..."
-jq '.resource_changes? // [] | .[] | {type:.type,name:.name,security_rule:.change.after.security_rule,after_state:.change.after}' tfplan.json || true
+jq '.resource_changes | length, .resource_changes[].address' tfplan.json || echo "⚠️ No resource_changes found"
 
+# Step 3: Verify Conftest policies
 echo "🔎 Verifying Conftest policies..."
-conftest verify --policy policy/ || true
+conftest verify --policy policy/
 
+# Step 4: Run Conftest drift classification
 echo "🔎 Running drift classification with Conftest..."
 set +e
 output=$(conftest test tfplan.json --policy policy/ --all-namespaces 2>&1)
 status=$?
 set -e
 
+# Print Conftest output
 echo "🔹 Conftest output:"
 echo "$output"
 
-if echo "$output" | grep "❌" >/dev/null; then
-    echo "🚨 Unsafe drift detected → Running remediation plan..."
-    terraform plan -out=tfplan.fix
-    terraform apply -auto-approve tfplan.fix
-elif echo "$output" | grep "⚠️" >/dev/null; then
+# Step 5: Auto-remediation logic
+if echo "$output" | grep -q "❌"; then
+    echo "🚨 Unsafe drift detected → Applying remediation..."
+    terraform apply -auto-approve tfplan.auto
+elif echo "$output" | grep -q "⚠️"; then
     echo "✅ Only safe drift detected → No remediation needed."
 else
     echo "✅ No drift detected."
 fi
 
+# Step 6: Cleanup Azure CLI accounts
 echo "🧹 Post-job cleanup: clearing Azure CLI accounts"
 az account clear
