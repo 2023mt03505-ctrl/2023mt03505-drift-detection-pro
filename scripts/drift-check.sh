@@ -1,40 +1,35 @@
 #!/bin/bash
 set -euo pipefail
 
-: "${ARM_CLIENT_ID:?Missing ARM_CLIENT_ID}"
-: "${ARM_TENANT_ID:?Missing ARM_TENANT_ID}"
-: "${ARM_SUBSCRIPTION_ID:?Missing ARM_SUBSCRIPTION_ID}"
-
 export ARM_USE_OIDC="${ARM_USE_OIDC:-true}"
 
 echo "🔄 Terraform init..."
 terraform init -reconfigure
 
-echo "🔄 Running Terraform plan for drift detection..."
+echo "🔄 Terraform plan for drift detection..."
 terraform plan -refresh=true -out=tfplan.auto -input=false
 
-echo "🔹 Converting plan to JSON..."
+echo "🔹 Convert plan to JSON..."
 terraform show -json tfplan.auto > tfplan.json
 
-# Safe JSON debug
-echo "🔹 Terraform JSON resource_changes preview:"
-jq 'if has("resource_changes") then .resource_changes | map({address,type,change: .change.actions}) else "⚠️ No resource_changes found" end' tfplan.json || true
+echo "🔹 Safe Terraform JSON resource_changes preview:"
+jq -r '.resource_changes[]? | "\(.address) (\(.type)): \(.change.actions)"' tfplan.json || echo "⚠️ No resource_changes found"
 
-echo "🔎 Verifying Conftest policies..."
-conftest verify --policy policy/ || true
+echo "🔎 Preparing JSON for Conftest..."
+jq '{resource_changes: .resource_changes}' tfplan.json > tfplan.conftest.json
 
-echo "🔎 Running drift classification with Conftest..."
+echo "🔎 Running Conftest policies..."
 set +e
-conftest_output=$(conftest test tfplan.json --policy policy/ --all-namespaces 2>&1)
+conftest_output=$(conftest test tfplan.conftest.json --policy policy/ --all-namespaces 2>&1)
 conftest_status=$?
 set -e
 
 echo "🔹 Conftest output:"
 echo "$conftest_output"
 
-# Auto-remediation logic
+echo "🔹 Auto-remediation logic:"
 if echo "$conftest_output" | grep -q "❌"; then
-    echo "🚨 Unsafe drift detected → Auto-remediating..."
+    echo "🚨 Unsafe drift detected → Applying plan..."
     terraform apply -auto-approve tfplan.auto
 elif echo "$conftest_output" | grep -q "⚠️"; then
     echo "✅ Only safe drift detected → No remediation needed."
@@ -42,5 +37,5 @@ else
     echo "✅ No drift detected."
 fi
 
-echo "🧹 Post-job cleanup: clearing Azure CLI accounts"
+echo "🧹 Cleanup Azure CLI accounts"
 az account clear
