@@ -1,94 +1,111 @@
 package terraform.storage
 
-# Helper: only consider update/create/replace
+# Check if action is update, create, or replace
 action_allowed(rc) {
+  some a
   a := rc.change.actions[_]
-  a in {"update", "create", "replace"}
+  a in ["update", "create", "replace"]
 }
 
-# Public blob access checks (safe with object.get)
+# Public access checks
 public_blob_allowed(s) {
-  object.get(s, "allow_blob_public_access", false) == true
+  s.allow_blob_public_access == true
 }
 public_blob_allowed(s) {
-  object.get(s, "allow_nested_items_to_be_public", false) == true
+  s.allow_nested_items_to_be_public == true
 }
 public_blob_allowed(s) {
-  object.get(s, "public_network_access_enabled", false) == true
+  s.public_network_access_enabled == true
 }
 
-# HTTPS disabled checks
+# HTTPS checks
 https_disabled(s) {
-  object.get(s, "enable_https_traffic_only", true) == false
+  s.enable_https_traffic_only == false
 }
 https_disabled(s) {
-  object.get(s, "https_traffic_only_enabled", true) == false
+  s.https_traffic_only_enabled == false
 }
 
-# TLS checks
+# TLS version checks
 tls_invalid(s) {
-  v := object.get(s, "min_tls_version", "TLS1_2")
+  v := s.min_tls_version
   v != "TLS1_2"
 }
 
-# ---- Policies ----
-
+# ❌ Public blob access before drift
 deny[msg] {
-  rc := input.resource_changes[_]
+  some i
+  rc := input.resource_changes[i]
   rc.type == "azurerm_storage_account"
   action_allowed(rc)
+
   rc.change.before != null
   public_blob_allowed(rc.change.before)
 
-  msg := sprintf("❌ Storage Account %s allows public blob access (before drift)", [rc.address])
+  msg := sprintf("❌ Storage Account %s allows public blob access (before)", [rc.address])
 }
 
+# ❌ Public blob access after drift
 deny[msg] {
-  rc := input.resource_changes[_]
+  some i
+  rc := input.resource_changes[i]
   rc.type == "azurerm_storage_account"
   action_allowed(rc)
+
   rc.change.after != null
   public_blob_allowed(rc.change.after)
 
-  msg := sprintf("❌ Storage Account %s will allow public blob access (after drift)", [rc.address])
+  msg := sprintf("❌ Storage Account %s will allow public blob access (after)", [rc.address])
 }
 
+# ❌ HTTPS disabled before drift
 deny[msg] {
-  rc := input.resource_changes[_]
+  some i
+  rc := input.resource_changes[i]
   rc.type == "azurerm_storage_account"
   action_allowed(rc)
+
   rc.change.before != null
   https_disabled(rc.change.before)
 
-  msg := sprintf("❌ Storage Account %s has HTTPS disabled (before drift)", [rc.address])
+  msg := sprintf("❌ Storage Account %s has HTTPS disabled (before)", [rc.address])
 }
 
+# ❌ HTTPS disabled after drift
 deny[msg] {
-  rc := input.resource_changes[_]
+  some i
+  rc := input.resource_changes[i]
   rc.type == "azurerm_storage_account"
   action_allowed(rc)
+
   rc.change.after != null
   https_disabled(rc.change.after)
 
-  msg := sprintf("❌ Storage Account %s will have HTTPS disabled (after drift)", [rc.address])
+  msg := sprintf("❌ Storage Account %s will have HTTPS disabled (after)", [rc.address])
 }
 
+# ❌ Invalid TLS version before drift
 deny[msg] {
-  rc := input.resource_changes[_]
+  some i
+  rc := input.resource_changes[i]
   rc.type == "azurerm_storage_account"
   action_allowed(rc)
+
   rc.change.before != null
   tls_invalid(rc.change.before)
 
-  msg := sprintf("❌ Storage Account %s has non-TLS1_2 (before drift)", [rc.address])
+  msg := sprintf("❌ Storage Account %s has non-TLS1_2 (before)", [rc.address])
 }
 
+# ❌ Invalid TLS version after drift
 deny[msg] {
-  rc := input.resource_changes[_]
+  some i
+  rc := input.resource_changes[i]
   rc.type == "azurerm_storage_account"
   action_allowed(rc)
+
   rc.change.after != null
   tls_invalid(rc.change.after)
 
-  msg := sprintf("❌ Storage Account %s will have non-TLS1_2 (after drift)", [rc.address])
+  msg := sprintf("❌ Storage Account %s will have non-TLS1_2 (after)", [rc.address])
 }
