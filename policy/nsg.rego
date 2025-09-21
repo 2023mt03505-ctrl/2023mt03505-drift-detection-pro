@@ -3,9 +3,7 @@ package terraform.nsg
 # Returns true if the resource change is an update/create/replace
 action_allowed(rc) {
     some i
-    rc.change.actions[i] == "update"
-    rc.change.actions[i] == "create"  # include create
-    rc.change.actions[i] == "replace" # include replace
+    rc.change.actions[i] in ["update", "create", "replace"]
 }
 
 # Returns true if the rule source allows world access
@@ -30,12 +28,10 @@ deny[msg] {
     rc := input.resource_changes[i]
     rc.type == "azurerm_network_security_group"
     action_allowed(rc)
-
     rc.change.before != null
     some j
     rule := rc.change.before.security_rule[j]
     unsafe_rule(rule)
-
     msg := sprintf("❌ NSG %s has insecure SSH rule (before): %s", [rc.address, rule.name])
 }
 
@@ -45,12 +41,10 @@ deny[msg] {
     rc := input.resource_changes[i]
     rc.type == "azurerm_network_security_group"
     action_allowed(rc)
-
     rc.change.after != null
     some j
     rule := rc.change.after.security_rule[j]
     unsafe_rule(rule)
-
     msg := sprintf("❌ NSG %s will have insecure SSH rule (after): %s", [rc.address, rule.name])
 }
 
@@ -60,10 +54,8 @@ warn[msg] {
     rc := input.resource_changes[i]
     rc.type == "azurerm_network_security_group"
     action_allowed(rc)
-
     rc.change.before != null
     rc.change.after != null
     rc.change.before.tags != rc.change.after.tags
-
     msg := sprintf("⚠️ Safe drift: Tags modified on %s", [rc.address])
 }
