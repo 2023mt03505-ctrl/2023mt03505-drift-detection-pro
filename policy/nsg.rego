@@ -12,6 +12,7 @@ deny[msg] {
   rule.destination_port_range == "22"
   rule.access == "Allow"
   rule.direction == "Inbound"
+
   {"0.0.0.0/0", "*"}[rule.source_address_prefix]   # ✅ fixed syntax
 
   msg := sprintf("❌ NSG %s allows SSH from world: %s", [rc.address, rule.name])
