@@ -1,22 +1,27 @@
 #!/bin/bash
 set -euo pipefail
 
+: "${ARM_CLIENT_ID:?Missing ARM_CLIENT_ID}"
+: "${ARM_TENANT_ID:?Missing ARM_TENANT_ID}"
+: "${ARM_SUBSCRIPTION_ID:?Missing ARM_SUBSCRIPTION_ID}"
+
 export ARM_USE_OIDC="${ARM_USE_OIDC:-true}"
 
 echo "🔄 Terraform init..."
 terraform init -reconfigure
 
-echo "🔄 Terraform plan for drift detection..."
+echo "🔄 Running Terraform plan for drift detection..."
 terraform plan -refresh=true -out=tfplan.auto -input=false
 
-echo "🔹 Convert plan to JSON..."
+echo "🔹 Converting plan to JSON..."
 terraform show -json tfplan.auto > tfplan.json
 
-echo "🔹 Safe Terraform JSON resource_changes preview:"
-jq -r '.resource_changes[]? | "\(.address) (\(.type)): \(.change.actions)"' tfplan.json || echo "⚠️ No resource_changes found"
+# Safe JSON debug
+echo "🔹 Full Terraform JSON resource_changes preview:"
+jq '.resource_changes' tfplan.json || true
 
-echo "🔎 Preparing JSON for Conftest..."
-jq '{resource_changes: .resource_changes}' tfplan.json > tfplan.conftest.json
+# Prepare JSON for Conftest
+cp tfplan.json tfplan.conftest.json
 
 echo "🔎 Running Conftest policies..."
 set +e
@@ -27,9 +32,9 @@ set -e
 echo "🔹 Conftest output:"
 echo "$conftest_output"
 
-echo "🔹 Auto-remediation logic:"
+# Auto-remediation logic
 if echo "$conftest_output" | grep -q "❌"; then
-    echo "🚨 Unsafe drift detected → Applying plan..."
+    echo "🚨 Unsafe drift detected → Auto-remediating..."
     terraform apply -auto-approve tfplan.auto
 elif echo "$conftest_output" | grep -q "⚠️"; then
     echo "✅ Only safe drift detected → No remediation needed."
@@ -37,5 +42,5 @@ else
     echo "✅ No drift detected."
 fi
 
-echo "🧹 Cleanup Azure CLI accounts"
+echo "🧹 Post-job cleanup: clearing Azure CLI accounts"
 az account clear
