@@ -1,7 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# Fail fast if required envs missing
 : "${ARM_CLIENT_ID:?Missing ARM_CLIENT_ID}"
 : "${ARM_TENANT_ID:?Missing ARM_TENANT_ID}"
 : "${ARM_SUBSCRIPTION_ID:?Missing ARM_SUBSCRIPTION_ID}"
@@ -14,11 +13,12 @@ terraform init -reconfigure
 echo "🔄 Running Terraform plan for drift detection..."
 terraform plan -refresh=true -out=tfplan.auto -input=false
 
-echo "🔹 Saving JSON plan..."
+echo "🔹 Converting plan to JSON..."
 terraform show -json tfplan.auto > tfplan.json
 
-echo "🔹 Previewing Terraform JSON plan structure..."
-jq '.resource_changes // [] | length as $len | "resource_changes count: \($len)", (.[] | .address)' tfplan.json || echo "⚠️ No resource_changes found"
+# Safe JSON debug
+echo "🔹 Terraform JSON resource_changes preview:"
+jq 'if has("resource_changes") then .resource_changes | map({address,type,change: .change.actions}) else "⚠️ No resource_changes found" end' tfplan.json || true
 
 echo "🔎 Verifying Conftest policies..."
 conftest verify --policy policy/ || true
@@ -32,6 +32,7 @@ set -e
 echo "🔹 Conftest output:"
 echo "$conftest_output"
 
+# Auto-remediation logic
 if echo "$conftest_output" | grep -q "❌"; then
     echo "🚨 Unsafe drift detected → Auto-remediating..."
     terraform apply -auto-approve tfplan.auto
