@@ -58,8 +58,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: drift
     if: ${{ always() }}
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -72,14 +74,23 @@ jobs:
       - name: Extract drift features
         run: python scripts/extract_drift_features.py
 
-      - name: Train AI model (one-time or refresh)
+      - name: Train AI drift model
         run: python scripts/train_drift_model.py
-        
-      - name: Train and infer drift model
-        run: |
-          python scripts/train_drift_model.py
-          python scripts/infer_drift_risk.py
 
+      - name: Save trained model artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-model
+          path: data/drift_model.pkl
+
+      - name: Download trained model
+        uses: actions/download-artifact@v4
+        with:
+          name: drift-model
+          path: data/
+
+      - name: Verify model file exists
+        run: ls -l data/
 
       - name: Run AI Drift Classifier
         run: python scripts/infer_drift_risk.py
