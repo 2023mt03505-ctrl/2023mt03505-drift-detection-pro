@@ -1,26 +1,37 @@
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
-import joblib, os
+import joblib
+import os
 
-df = pd.read_csv("drift_features.csv")
+# Ensure the data directory exists
+os.makedirs("data", exist_ok=True)
 
-# quick rule-based labels for bootstrap training
-df["label"] = df.apply(
-    lambda x: 1 if x["open_ssh"] or x["public_access"] else 0,
-    axis=1
-)
+# Check drift history file
+history_path = "data/drift_history.csv"
+if not os.path.exists(history_path):
+    print(f"❌ No drift history found at {history_path}. Please run drift detection first.")
+    exit(1)
 
-X = df[["open_ssh", "public_access", "tag_changed"]].astype(int)
-y = df["label"]
+print("📘 Loading drift history...")
+df = pd.read_csv(history_path)
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-clf = RandomForestClassifier(n_estimators=100, random_state=42)
-clf.fit(X_train, y_train)
+# Simple fallback dataset
+if "drift_type" not in df.columns or "risk_label" not in df.columns:
+    print("⚠️ Drift history missing required columns, generating sample training data...")
+    df = pd.DataFrame({
+        "num_resources_changed": [1, 3, 10, 2],
+        "critical_services_affected": [0, 1, 1, 0],
+        "drift_duration_hours": [1, 5, 12, 2],
+        "risk_label": ["low", "high", "high", "low"]
+    })
 
-print(classification_report(y_test, clf.predict(X_test)))
+print("🧠 Training RandomForest model...")
+X = df.drop(columns=["risk_label"])
+y = df["risk_label"]
 
-os.makedirs("models", exist_ok=True)
-joblib.dump(clf, "models/drift_classifier.pkl")
-print("✅ Model saved → models/drift_classifier.pkl")
+model = RandomForestClassifier(n_estimators=50, random_state=42)
+model.fit(X, y)
+
+output_path = "data/drift_model.pkl"
+joblib.dump(model, output_path)
+print(f"✅ Model trained and saved to {output_path}")

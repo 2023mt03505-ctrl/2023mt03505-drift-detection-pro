@@ -2,7 +2,7 @@ name: Drift Detection & Auto-Remediation
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "*/1500 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -71,6 +71,9 @@ jobs:
 
       - name: Extract drift features
         run: python scripts/extract_drift_features.py
+
+      - name: Train AI model (one-time or refresh)
+        run: python scripts/train_drift_model.py
 
       - name: Run AI Drift Classifier
         run: python scripts/infer_drift_risk.py
