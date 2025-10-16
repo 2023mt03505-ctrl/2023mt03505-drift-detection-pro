@@ -1,0 +1,5 @@
+timestamp,resource_type,drift_type,severity,action_taken
+2025-10-11T06:00:00Z,nsg,rule_removed,high,auto_remediate
+2025-10-11T06:15:00Z,storage_account,public_access,critical,manual
+2025-10-11T06:30:00Z,tag,metadata,low,ignore
+2025-10-11T06:45:00Z,nsg,new_rule_added,medium,auto_remediate
