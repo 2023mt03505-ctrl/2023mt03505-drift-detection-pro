@@ -74,6 +74,12 @@ jobs:
 
       - name: Train AI model (one-time or refresh)
         run: python scripts/train_drift_model.py
+        
+      - name: Train and infer drift model
+        run: |
+          python scripts/train_drift_model.py
+          python scripts/infer_drift_risk.py
+
 
       - name: Run AI Drift Classifier
         run: python scripts/infer_drift_risk.py
