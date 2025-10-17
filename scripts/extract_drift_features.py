@@ -1,53 +1,55 @@
-import os
 import json
 import pandas as pd
+import os, sys
 
 print("📘 Extracting drift features from Terraform plan...")
 
-os.makedirs("data", exist_ok=True)
-plan_path = "data/tfplan.json"
+# Define input/output paths
+input_path = "data/drift_results.json"
+output_path = "drift_features.csv"
 
-if not os.path.exists(plan_path):
-    print("⚠️ tfplan.json not found — using fallback sample data for AI testing.")
-    data = [
-        {"address": "azurerm_network_security_group.nsg1", "type": "nsg", "num_resources_changed": 1, "critical_services_affected": 1, "drift_duration_hours": 2},
-        {"address": "azurerm_storage_account.sa1", "type": "storage", "num_resources_changed": 2, "critical_services_affected": 0, "drift_duration_hours": 5},
-        {"address": "azurerm_virtual_machine.vm1", "type": "vm", "num_resources_changed": 1, "critical_services_affected": 1, "drift_duration_hours": 1},
-    ]
-else:
-    with open(plan_path, "r") as f:
-        plan_json = json.load(f)
+# --- 1️⃣ Check if the input file exists ---
+if not os.path.exists(input_path):
+    print(f"⚠️ No drift results found at {input_path}. Skipping feature extraction.")
+    sys.exit(0)
 
-    resources = plan_json.get("resource_changes", [])
-    if not resources:
-        print("⚠️ No resource_changes found in tfplan.json — using fallback data.")
-        data = [
-            {"address": "azurerm_network_security_group.nsg1", "type": "nsg", "num_resources_changed": 1, "critical_services_affected": 1, "drift_duration_hours": 2},
-            {"address": "azurerm_storage_account.sa1", "type": "storage", "num_resources_changed": 2, "critical_services_affected": 0, "drift_duration_hours": 5},
-        ]
-    else:
-        data = []
-        for r in resources:
-            address = r.get("address", "unknown")
-            rtype = r.get("type", "unknown")
-            actions = r.get("change", {}).get("actions", [])
-            drifted = len(actions) > 0 and actions[0] != "no-op"
-            if drifted:
-                data.append({
-                    "address": address,
-                    "type": rtype,
-                    "num_resources_changed": len(actions),
-                    "critical_services_affected": 1 if "delete" in actions or "replace" in actions else 0,
-                    "drift_duration_hours": 2,
-                })
+# --- 2️⃣ Load drift data safely ---
+with open(input_path, "r") as f:
+    try:
+        data = json.load(f)
+    except json.JSONDecodeError:
+        print("⚠️ Invalid JSON format in drift_results.json. Skipping extraction.")
+        sys.exit(0)
 
-        if not data:
-            print("ℹ️ No drifted resources found, adding one placeholder sample.")
-            data = [{"address": "placeholder", "type": "none", "num_resources_changed": 0, "critical_services_affected": 0, "drift_duration_hours": 0}]
+# --- 3️⃣ Extract resource list ---
+resources = data.get("resource_changes") or data.get("resources") or []
 
-df = pd.DataFrame(data)
-out_path = "data/drift_features.csv"
-df.to_csv(out_path, index=False)
+if not resources:
+    print("✅ No resource drift detected — nothing to extract.")
+    sys.exit(0)
 
-print(f"✅ Drift features extracted → {out_path}")
-print(df)
+# --- 4️⃣ Extract drift features ---
+rows = []
+for r in resources:
+    address = r.get("address", "unknown")
+    change = r.get("change", {})
+    before = change.get("before", {}) or {}
+    after = change.get("after", {}) or {}
+
+    # Feature examples
+    open_ssh = int(after.get("allow_ssh", False))
+    public_access = int(after.get("public_access", False))
+    tag_changed = int(before.get("tags") != after.get("tags"))
+
+    rows.append({
+        "address": address,
+        "type": r.get("type", "unknown"),
+        "open_ssh": open_ssh,
+        "public_access": public_access,
+        "tag_changed": tag_changed
+    })
+
+# --- 5️⃣ Save to CSV ---
+df = pd.DataFrame(rows)
+df.to_csv(output_path, index=False)
+print(f"✅ Drift feature file generated: {output_path}")
