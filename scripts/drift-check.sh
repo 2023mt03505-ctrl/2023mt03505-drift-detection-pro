@@ -7,40 +7,48 @@ set -euo pipefail
 
 export ARM_USE_OIDC="${ARM_USE_OIDC:-true}"
 
+mkdir -p data
+
 echo "🔄 Terraform init..."
 terraform init -reconfigure
 
 echo "🔄 Running Terraform plan for drift detection..."
-terraform plan -refresh=true -out=tfplan.auto -input=false
+terraform plan -refresh-only -out=tfplan.auto -input=false || {
+  echo "⚠️ Terraform plan failed"; exit 1;
+}
 
 echo "🔹 Converting plan to JSON..."
 terraform show -json tfplan.auto > tfplan.json
+jq '.resource_changes' tfplan.json > data/resource_changes.json
 
-# Safe JSON debug
-echo "🔹 Full Terraform resource_changes preview:"
-jq '.resource_changes' tfplan.json || true
-
-# Prepare JSON for Conftest
-cp tfplan.json tfplan.conftest.json
-
-echo "🔎 Running Conftest policies..."
+echo "🔎 Running Conftest policy validation..."
 set +e
-conftest_output=$(conftest test tfplan.conftest.json --policy policy/ --all-namespaces 2>&1)
-conftest_status=$?
+conftest_output=$(conftest test tfplan.json --policy policy/ --all-namespaces 2>&1)
+status=$?
 set -e
 
-echo "🔹 Conftest output:"
-echo "$conftest_output"
+echo "$conftest_output" | tee data/conftest_output.log
 
-# Auto-remediation logic
+timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+# Parse drift classification
 if echo "$conftest_output" | grep -q "❌"; then
+    drift_type="unsafe"
+    severity="high"
+    action="terraform apply"
     echo "🚨 Unsafe drift detected → Auto-remediating..."
     terraform apply -auto-approve tfplan.auto
 elif echo "$conftest_output" | grep -q "⚠️"; then
-    echo "✅ Only safe drift detected → No remediation needed."
+    drift_type="safe"
+    severity="low"
+    action="none"
+    echo "✅ Safe drift detected (no action)."
 else
+    drift_type="none"
+    severity="none"
+    action="none"
     echo "✅ No drift detected."
 fi
 
-echo "🧹 Post-job cleanup: clearing Azure CLI accounts"
+echo "$timestamp,$drift_type,$severity,$action" >> data/drift_history.csv
 az account clear
