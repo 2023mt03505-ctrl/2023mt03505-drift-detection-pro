@@ -1,25 +1,28 @@
-import pandas as pd, joblib, sys, os
+import os, sys, joblib, pandas as pd
 
 model_path = "data/drift_model.pkl"
+features_path = "data/drift_features.csv"
+
 if not os.path.exists(model_path):
-    print("⚠️ Model not found, skipping AI classification.")
+    print("⚠️ No model found — skipping AI classification.")
     sys.exit(0)
 
-features_path = "data/drift_features.csv"
 if not os.path.exists(features_path):
-    print("⚠️ Drift features not found.")
+    print("⚠️ No drift features found.")
     sys.exit(0)
 
 print("🤖 Loading trained drift classification model...")
 model = joblib.load(model_path)
 df = pd.read_csv(features_path)
 
-# Match training feature names
-X = df[["critical_services_affected", "drift_duration_hours", "num_resources_changed"]].astype(float)
+# ✅ Must match training feature order exactly
+feature_cols = ["num_resources_changed", "critical_services_affected", "drift_duration_hours"]
+X = df[feature_cols].astype(float)
 
 pred = model.predict(X)
 df["predicted_risk"] = pred
 
+print("\n📊 Drift Risk Predictions:")
 print(df[["address", "type", "predicted_risk"]])
 
 if any(pred == 1):
