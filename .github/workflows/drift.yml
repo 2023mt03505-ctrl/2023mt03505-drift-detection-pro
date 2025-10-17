@@ -1,8 +1,8 @@
-name: Drift Detection & Auto-Remediation
+name: Drift Detection, Remediation & AI Intelligence
 
 on:
   schedule:
-    - cron: "*/1500 * * * *"
+    - cron: "0 */3 * * *"   # every 3 hours
   workflow_dispatch:
 
 permissions:
@@ -11,10 +11,11 @@ permissions:
 
 jobs:
   drift:
+    name: Drift Detection & Auto-Remediation
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Azure login (OIDC)
@@ -37,7 +38,7 @@ jobs:
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Install Conftest
+      - name: Install Conftest (OPA)
         run: |
           CONFTEST_VERSION=0.52.0
           curl -L https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz -o conftest.tgz
@@ -45,7 +46,7 @@ jobs:
           sudo mv conftest /usr/local/bin/
           conftest --version
 
-      - name: Drift check & auto-remediate
+      - name: Run Drift Detection & Auto-Remediation
         run: bash scripts/drift-check.sh
         env:
           ARM_USE_OIDC: 'true'
@@ -53,15 +54,27 @@ jobs:
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Upload drift logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-logs
+          path: data/
+
   ai-drift:
-    name: Intelligent Drift Classification
+    name: AI Drift Classification
     runs-on: ubuntu-latest
     needs: drift
     if: ${{ always() }}
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Download drift logs
+        uses: actions/download-artifact@v4
+        with:
+          name: drift-logs
+          path: data/
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -77,20 +90,5 @@ jobs:
       - name: Train AI drift model
         run: python scripts/train_drift_model.py
 
-      - name: Save trained model artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: drift-model
-          path: data/drift_model.pkl
-
-      - name: Download trained model
-        uses: actions/download-artifact@v4
-        with:
-          name: drift-model
-          path: data/
-
-      - name: Verify model file exists
-        run: ls -l data/
-
-      - name: Run AI Drift Classifier
+      - name: Run AI Drift Risk Classifier
         run: python scripts/infer_drift_risk.py
