@@ -56,9 +56,9 @@ jobs:
           python3 -m pip install --upgrade pip
           pip install pandas joblib
 
-
       - name: Run Drift Detection & Auto-Remediation
         run: bash scripts/drift-check.sh
+        continue-on-error: true
         env:
           ARM_USE_OIDC: 'true'
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -116,8 +116,17 @@ jobs:
         run: python scripts/infer_drift_risk.py
         continue-on-error: true
 
+      - name: Terraform Init for Remediation
+        if: failure()
+        run: terraform init -reconfigure
+        env:
+          ARM_USE_OIDC: 'true'
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       - name: Auto-remediate if risky drift detected
-        if: failure()  # only runs if infer_drift_risk.py exits with 1
+        if: failure()
         run: |
           echo "🚨 Triggering auto-remediation due to high-risk drift..."
-          terraform apply -auto-approve
+          terraform apply -auto-approve tfplan.auto
