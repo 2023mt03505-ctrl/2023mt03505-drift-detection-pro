@@ -1,55 +1,43 @@
-import json
-import pandas as pd
-import os, sys
+import json, os, sys, pandas as pd
 
 print("📘 Extracting drift features from Terraform plan...")
 
-# Define input/output paths
 input_path = "data/drift_results.json"
-output_path = "drift_features.csv"
+output_path = "data/drift_features.csv"
 
-# --- 1️⃣ Check if the input file exists ---
-if not os.path.exists(input_path):
-    print(f"⚠️ No drift results found at {input_path}. Skipping feature extraction.")
+# --- Check if file exists and is non-empty ---
+if not os.path.exists(input_path) or os.path.getsize(input_path) == 0:
+    print("⚠️ No drift results found. Skipping feature extraction.")
     sys.exit(0)
 
-# --- 2️⃣ Load drift data safely ---
-with open(input_path, "r") as f:
+with open(input_path) as f:
     try:
         data = json.load(f)
     except json.JSONDecodeError:
-        print("⚠️ Invalid JSON format in drift_results.json. Skipping extraction.")
+        print("⚠️ Invalid JSON format in drift_results.json. Skipping.")
         sys.exit(0)
 
-# --- 3️⃣ Extract resource list ---
-resources = data.get("resource_changes") or data.get("resources") or []
-
-if not resources:
-    print("✅ No resource drift detected — nothing to extract.")
+if not data:
+    print("⚠️ No drift entries found. Skipping extraction.")
     sys.exit(0)
 
-# --- 4️⃣ Extract drift features ---
 rows = []
-for r in resources:
-    address = r.get("address", "unknown")
-    change = r.get("change", {})
-    before = change.get("before", {}) or {}
-    after = change.get("after", {}) or {}
+for entry in data:
+    drift_type = entry.get("drift_type", "unknown")
+    severity = entry.get("severity", "unknown")
 
-    # Feature examples
-    open_ssh = int(after.get("allow_ssh", False))
-    public_access = int(after.get("public_access", False))
-    tag_changed = int(before.get("tags") != after.get("tags"))
+    # Derive simple numeric features for model input
+    num_resources_changed = 1 if drift_type != "none" else 0
+    critical_services_affected = 1 if severity == "high" else 0
+    drift_duration_hours = 1  # Placeholder (future: calculate via timestamps)
 
     rows.append({
-        "address": address,
-        "type": r.get("type", "unknown"),
-        "open_ssh": open_ssh,
-        "public_access": public_access,
-        "tag_changed": tag_changed
+        "num_resources_changed": num_resources_changed,
+        "critical_services_affected": critical_services_affected,
+        "drift_duration_hours": drift_duration_hours,
+        "drift_label": severity
     })
 
-# --- 5️⃣ Save to CSV ---
 df = pd.DataFrame(rows)
 df.to_csv(output_path, index=False)
 print(f"✅ Drift feature file generated: {output_path}")

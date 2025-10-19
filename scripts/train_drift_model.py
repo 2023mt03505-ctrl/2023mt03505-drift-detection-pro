@@ -1,28 +1,38 @@
-import os, pandas as pd, joblib
+import os, pandas as pd, sys
 from sklearn.ensemble import RandomForestClassifier
+from joblib import dump
 
-os.makedirs("data", exist_ok=True)
-history_path = "data/drift_history.csv"
+os.makedirs("models", exist_ok=True)
+data_path = "data/drift_features.csv"
+model_path = "models/drift_classifier.joblib"
 
-if os.path.exists(history_path):
-    df = pd.read_csv(history_path)
-else:
-    df = pd.DataFrame({
-        "num_resources_changed": [1, 3, 10],
-        "critical_services_affected": [0, 1, 1],
-        "drift_duration_hours": [1, 5, 10],
-        "risk_label": ["low", "high", "high"]
-    })
+# --- Check if data exists ---
+if not os.path.exists(data_path) or os.path.getsize(data_path) == 0:
+    print("⚠️ No drift feature data found. Skipping model training.")
+    sys.exit(0)
 
-if "risk_label" not in df.columns:
-    df["risk_label"] = ["low"] * len(df)
+df = pd.read_csv(data_path)
 
-feature_cols = ["num_resources_changed", "critical_services_affected", "drift_duration_hours"]
+feature_cols = ['num_resources_changed', 'critical_services_affected', 'drift_duration_hours']
+missing = [c for c in feature_cols if c not in df.columns]
+
+if missing:
+    print(f"⚠️ Missing columns in feature data: {missing}. Skipping training.")
+    sys.exit(0)
+
+if df.empty:
+    print("⚠️ No rows in drift feature data. Skipping training.")
+    sys.exit(0)
+
+if 'drift_label' not in df.columns:
+    print("⚠️ Missing drift_label column. Skipping training.")
+    sys.exit(0)
+
 X = df[feature_cols]
-y = (df["risk_label"] == "high").astype(int)
+y = (df['drift_label'] == 'high').astype(int)
 
-print("🧠 Training RandomForest drift model...")
 model = RandomForestClassifier(n_estimators=100, random_state=42)
 model.fit(X, y)
-joblib.dump(model, "data/drift_model.pkl")
-print("✅ Saved model → data/drift_model.pkl")
+dump(model, model_path)
+
+print(f"✅ Drift classification model trained successfully → {model_path}")

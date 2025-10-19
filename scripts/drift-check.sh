@@ -26,7 +26,7 @@ terraform show -json tfplan.auto > tfplan.json
 jq '.resource_changes // []' tfplan.json > data/resource_changes.json
 
 if [[ ! -s data/resource_changes.json ]]; then
-  echo "⚠️ No resource_changes found in tfplan.json (empty or invalid plan)"
+  echo "⚠️ No resource_changes found in tfplan.json"
   echo "[]" > data/resource_changes.json
 fi
 
@@ -39,7 +39,7 @@ echo "$conftest_output" | tee data/conftest_output.log
 
 timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-# --- Drift Classification ---
+# --- Drift classification based on policies ---
 if echo "$conftest_output" | grep -q "❌"; then
   drift_type="unsafe"
   severity="high"
@@ -50,7 +50,7 @@ elif echo "$conftest_output" | grep -q "⚠️"; then
   drift_type="safe"
   severity="low"
   action="none"
-  echo "✅ Safe drift detected (no action)."
+  echo "✅ Safe drift detected (no remediation)."
 else
   drift_type="none"
   severity="none"
@@ -58,8 +58,23 @@ else
   echo "✅ No drift detected."
 fi
 
-# --- Logging ---
+# --- Write drift results for AI layer ---
+if [[ "$drift_type" == "none" ]]; then
+  echo "[]" > data/drift_results.json
+else
+  jq -n --arg type "$drift_type" --arg severity "$severity" \
+     '[{ "drift_type": $type, "severity": $severity }]' > data/drift_results.json
+fi
+
+# --- Log drift history ---
 echo "$timestamp,$drift_type,$severity,$action" >> data/drift_history.csv
+
+# --- AI Layer: Extract features + infer risk ---
+echo "🧠 Extracting features for AI classification..."
+python3 scripts/extract_drift_features.py || true
+
+echo "🤖 Running AI-based drift risk inference..."
+python3 scripts/infer_drift_risk.py || true
 
 # --- Cleanup ---
 az account clear
