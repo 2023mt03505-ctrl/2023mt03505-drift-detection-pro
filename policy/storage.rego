@@ -41,8 +41,24 @@ deny[msg] {
     rc.type == "azurerm_storage_account"
     action_allowed(rc)
     s := rc.change.after
-    any_unsafe := public_blob_allowed(s) or https_disabled(s) or tls_invalid(s)
-    any_unsafe
+
+    # Correct way: use separate lines instead of assigning a boolean expression
+    public_blob_allowed(s)
+} else {
+    some i
+    rc := input.resource_changes[i]
+    rc.type == "azurerm_storage_account"
+    action_allowed(rc)
+    s := rc.change.after
+    https_disabled(s)
+} else {
+    some i
+    rc := input.resource_changes[i]
+    rc.type == "azurerm_storage_account"
+    action_allowed(rc)
+    s := rc.change.after
+    tls_invalid(s)
+} {
     msg := sprintf("❌ Storage %s unsafe config (public/blob/https/tls)", [rc.address])
 }
 
