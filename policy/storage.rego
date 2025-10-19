@@ -41,7 +41,8 @@ deny[msg] {
     rc.type == "azurerm_storage_account"
     action_allowed(rc)
     s := rc.change.after
-    public_blob_allowed(s) or https_disabled(s) or tls_invalid(s)
+    any_unsafe := public_blob_allowed(s) or https_disabled(s) or tls_invalid(s)
+    any_unsafe
     msg := sprintf("❌ Storage %s unsafe config (public/blob/https/tls)", [rc.address])
 }
 
