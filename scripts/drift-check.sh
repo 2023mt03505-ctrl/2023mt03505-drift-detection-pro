@@ -13,7 +13,7 @@ export ARM_USE_OIDC="${ARM_USE_OIDC:-true}"
 mkdir -p data
 
 # =========================
-# Terraform init and full plan
+# Terraform init and plan
 # =========================
 echo "🔄 Terraform init..."
 terraform init -reconfigure
@@ -45,18 +45,18 @@ timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 # =========================
 # Parse drift classification and auto-remediate
 # =========================
-if echo "$conftest_output" | grep -q "❌"; then
+if echo "$conftest_output" | grep -q "FAIL\|❌"; then
     drift_type="unsafe"
     severity="high"
     action="terraform apply"
     echo "🚨 Unsafe drift detected → Auto-remediating..."
     terraform apply -auto-approve tfplan.auto
 
-elif echo "$conftest_output" | grep -q "⚠️"; then
+elif echo "$conftest_output" | grep -q "WARN\|⚠️"; then
     drift_type="safe"
     severity="low"
     action="none"
-    echo "✅ Safe drift detected (no action)."
+    echo "⚠️ Safe drift detected (no action)."
 
 else
     drift_type="none"

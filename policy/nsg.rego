@@ -18,7 +18,7 @@ action_allowed(rc) {
 }
 
 # -----------------------------
-# Deny insecure NSG rules (SSH, RDP, wide CIDR)
+# Deny insecure NSG rules (open SSH, RDP, etc.)
 # -----------------------------
 deny[msg] {
     some i
@@ -39,4 +39,4 @@ deny[msg] {
     msg := sprintf("❌ NSG %s rule %s allows SSH from anywhere", [rc.address, rule.name])
 }
 
-# Add more NSG rules here as needed, e.g., RDP, CIDR ranges
+# Add more rules for RDP, wide CIDRs as needed
