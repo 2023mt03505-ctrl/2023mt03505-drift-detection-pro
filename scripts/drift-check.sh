@@ -71,10 +71,16 @@ echo "$timestamp,$drift_type,$severity,$action" >> data/drift_history.csv
 
 # --- AI Layer: Extract features + infer risk ---
 echo "🧠 Extracting features for AI classification..."
-python3 scripts/extract_drift_features.py || true
+python3 scripts/extract_drift_features.py || echo "⚠️ Feature extraction failed"
 
 echo "🤖 Running AI-based drift risk inference..."
-python3 scripts/infer_drift_risk.py || true
+python3 scripts/infer_drift_risk.py || echo "⚠️ Risk inference failed"
+
+# --- Fallback remediation if unsafe drift persists ---
+if [[ "$drift_type" != "none" ]]; then
+  echo "⚙️ Fallback: Ensuring infrastructure is in sync..."
+  terraform apply -auto-approve tfplan.auto
+fi
 
 # --- Cleanup ---
 az account clear
