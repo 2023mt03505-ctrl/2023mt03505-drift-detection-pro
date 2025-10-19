@@ -1,15 +1,22 @@
 package terraform.nsg
 
-# Returns true if the resource change is an update/create/replace
+# Returns true if the resource change should be analyzed
 action_allowed(rc) {
+    # Normal plan changes
     rc.change.actions[_] == "update"
-} 
+}
 action_allowed(rc) {
     rc.change.actions[_] == "create"
 }
 action_allowed(rc) {
     rc.change.actions[_] == "replace"
 }
+action_allowed(rc) {
+    # Drift-only plan (no actions array but before/after differ)
+    not rc.change.actions
+    rc.change.before != rc.change.after
+}
+
 
 # Returns true if the rule source allows world access
 source_is_world(r) {
