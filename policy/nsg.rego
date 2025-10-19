@@ -5,17 +5,20 @@ package terraform.nsg
 # -----------------------------
 action_allowed(rc) {
     rc.change.actions[_] == "update"
-} else {
+}
+action_allowed(rc) {
     rc.change.actions[_] == "create"
-} else {
+}
+action_allowed(rc) {
     rc.change.actions[_] == "replace"
-} else {
+}
+action_allowed(rc) {
     not rc.change.actions
     rc.change.before != rc.change.after
 }
 
 # -----------------------------
-# Deny insecure NSG rules (open SSH, etc.)
+# Deny insecure NSG rules (SSH, RDP, wide CIDR)
 # -----------------------------
 deny[msg] {
     some i
@@ -36,4 +39,4 @@ deny[msg] {
     msg := sprintf("❌ NSG %s rule %s allows SSH from anywhere", [rc.address, rule.name])
 }
 
-# Add more NSG rules here as needed, e.g., open RDP, wide CIDR ranges
+# Add more NSG rules here as needed, e.g., RDP, CIDR ranges

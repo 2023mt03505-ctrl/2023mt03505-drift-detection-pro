@@ -13,7 +13,7 @@ export ARM_USE_OIDC="${ARM_USE_OIDC:-true}"
 mkdir -p data
 
 # =========================
-# Terraform init and plan
+# Terraform init and full plan
 # =========================
 echo "🔄 Terraform init..."
 terraform init -reconfigure

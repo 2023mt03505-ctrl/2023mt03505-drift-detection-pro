@@ -66,7 +66,6 @@ deny[msg] {
 deny[msg] {
     some i
     rc := input.resource_changes[i]
-
     rc.type == "azurerm_storage_account"
     action_allowed(rc)
     s := rc.change.after
@@ -77,7 +76,6 @@ deny[msg] {
 deny[msg] {
     some i
     rc := input.resource_changes[i]
-
     rc.type == "azurerm_storage_account"
     action_allowed(rc)
     s := rc.change.after
