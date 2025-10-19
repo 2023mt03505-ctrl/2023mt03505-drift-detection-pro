@@ -1,6 +1,6 @@
 package terraform.storage
 
-# Return true if change should be analyzed
+# Determine if a resource change should be analyzed
 action_allowed(rc) {
   rc.change.actions[_] == "update"
 } else {
@@ -12,7 +12,7 @@ action_allowed(rc) {
   rc.change.before != rc.change.after
 }
 
-# Public access detection
+# Detect public access
 public_blob_allowed(s) {
   s.allow_blob_public_access == true
 } else {
@@ -21,20 +21,20 @@ public_blob_allowed(s) {
   s.public_network_access_enabled == true
 }
 
-# HTTPS enforcement
+# Enforce HTTPS
 https_disabled(s) {
   s.enable_https_traffic_only == false
 } else {
   s.https_traffic_only_enabled == false
 }
 
-# TLS enforcement
+# Enforce TLS >= 1.2
 tls_invalid(s) {
   v := s.min_tls_version
   v != "TLS1_2"
 }
 
-# Deny for unsafe settings
+# ❌ Deny unsafe configurations (public access, HTTPS disabled, weak TLS)
 deny[msg] {
   some i
   rc := input.resource_changes[i]
@@ -45,13 +45,12 @@ deny[msg] {
   msg := sprintf("❌ Storage %s unsafe config (public/blob/https/tls)", [rc.address])
 }
 
-# Warn for tag drifts (safe)
+# ⚠️ Warn for safe tag drifts
 warn[msg] {
   some i
   rc := input.resource_changes[i]
   rc.type == "azurerm_storage_account"
   action_allowed(rc)
   rc.change.before.tags != rc.change.after.tags
-
   msg := sprintf("⚠️ Safe drift: Tags changed on %s", [rc.address])
 }

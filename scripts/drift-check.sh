@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
+# Azure auth validation
 : "${ARM_CLIENT_ID:?Missing ARM_CLIENT_ID}"
 : "${ARM_TENANT_ID:?Missing ARM_TENANT_ID}"
 : "${ARM_SUBSCRIPTION_ID:?Missing ARM_SUBSCRIPTION_ID}"
@@ -38,11 +39,13 @@ if echo "$conftest_output" | grep -q "❌"; then
     action="terraform apply"
     echo "🚨 Unsafe drift detected → Auto-remediating..."
     terraform apply -auto-approve tfplan.auto
+
 elif echo "$conftest_output" | grep -q "⚠️"; then
     drift_type="safe"
     severity="low"
     action="none"
     echo "✅ Safe drift detected (no action)."
+
 else
     drift_type="none"
     severity="none"
@@ -51,4 +54,6 @@ else
 fi
 
 echo "$timestamp,$drift_type,$severity,$action" >> data/drift_history.csv
+
+# Clear session for security
 az account clear
