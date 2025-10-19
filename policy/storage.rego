@@ -1,6 +1,8 @@
 package terraform.storage
 
-# Determine if a resource change should be analyzed
+# -----------------------------
+# Helper: Determine if a resource change should be analyzed
+# -----------------------------
 action_allowed(rc) {
     rc.change.actions[_] == "update"
 } else {
@@ -12,7 +14,10 @@ action_allowed(rc) {
     rc.change.before != rc.change.after
 }
 
-# Detect public access
+# -----------------------------
+# Storage Account Checks
+# -----------------------------
+# Public access detection
 public_blob_allowed(s) {
     s.allow_blob_public_access == true
 } else {
@@ -21,53 +26,56 @@ public_blob_allowed(s) {
     s.public_network_access_enabled == true
 }
 
-# Enforce HTTPS
+# HTTPS enforcement
 https_disabled(s) {
     s.enable_https_traffic_only == false
 } else {
     s.https_traffic_only_enabled == false
 }
 
-# Enforce TLS >= 1.2
+# TLS enforcement
 tls_invalid(s) {
     v := s.min_tls_version
     v != "TLS1_2"
 }
 
-# ❌ Deny unsafe configurations (public access, HTTPS disabled, weak TLS)
+# -----------------------------
+# Storage Container Checks
+# -----------------------------
+container_not_private(s) {
+    s.container_access_type != "private"
+}
+
+# -----------------------------
+# Deny unsafe configurations (Storage Account + Container)
+# -----------------------------
 deny[msg] {
     some i
     rc := input.resource_changes[i]
+
+    # Storage Account checks
     rc.type == "azurerm_storage_account"
     action_allowed(rc)
     s := rc.change.after
-
-    # Combine all unsafe checks in one line (no else)
-    public_blob_allowed(s) 
-    msg := sprintf("❌ Storage %s unsafe config (public/blob/https/tls)", [rc.address])
-} 
-
-deny[msg] {
-    some i
-    rc := input.resource_changes[i]
-    rc.type == "azurerm_storage_account"
-    action_allowed(rc)
-    s := rc.change.after
-    https_disabled(s)
-    msg := sprintf("❌ Storage %s unsafe config (public/blob/https/tls)", [rc.address])
+    (public_blob_allowed(s) or https_disabled(s) or tls_invalid(s))
+    msg := sprintf("❌ Storage Account %s unsafe config (public/blob/https/tls)", [rc.address])
 }
 
 deny[msg] {
     some i
     rc := input.resource_changes[i]
-    rc.type == "azurerm_storage_account"
+
+    # Storage Container checks
+    rc.type == "azurerm_storage_container"
     action_allowed(rc)
     s := rc.change.after
-    tls_invalid(s)
-    msg := sprintf("❌ Storage %s unsafe config (public/blob/https/tls)", [rc.address])
+    container_not_private(s)
+    msg := sprintf("❌ Storage Container %s is not private", [rc.address])
 }
 
-# ⚠️ Warn for safe tag drifts
+# -----------------------------
+# Warn for safe tag drifts
+# -----------------------------
 warn[msg] {
     some i
     rc := input.resource_changes[i]

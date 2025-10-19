@@ -1,53 +1,39 @@
 package terraform.nsg
 
-# Return true if change should be analyzed
+# -----------------------------
+# Helper: Determine if a resource change should be analyzed
+# -----------------------------
 action_allowed(rc) {
-  rc.change.actions[_] == "update"
+    rc.change.actions[_] == "update"
 } else {
-  rc.change.actions[_] == "create"
+    rc.change.actions[_] == "create"
 } else {
-  rc.change.actions[_] == "replace"
+    rc.change.actions[_] == "replace"
 } else {
-  not rc.change.actions
-  rc.change.before != rc.change.after
+    not rc.change.actions
+    rc.change.before != rc.change.after
 }
 
-# Check if world access is allowed
-source_is_world(r) {
-  r.source_address_prefix == "*"
-} else {
-  r.source_address_prefix == "0.0.0.0/0"
-}
-
-# Detect unsafe SSH rule
-unsafe_rule(r) {
-  r.direction == "Inbound"
-  r.destination_port_range == "22"
-  r.access == "Allow"
-  source_is_world(r)
-}
-
-# Deny for unsafe SSH rules
+# -----------------------------
+# Deny insecure NSG rules (open SSH, etc.)
+# -----------------------------
 deny[msg] {
-  some i
-  rc := input.resource_changes[i]
-  rc.type == "azurerm_network_security_group"
-  action_allowed(rc)
-  rc.change.after != null
-  some j
-  rule := rc.change.after.security_rule[j]
-  unsafe_rule(rule)
+    some i
+    rc := input.resource_changes[i]
+    rc.type == "azurerm_network_security_group"
+    action_allowed(rc)
 
-  msg := sprintf("❌ NSG %s insecure SSH rule: %s", [rc.address, rule.name])
+    some j
+    rule := rc.change.after.security_rule[j]
+
+    # Deny inbound SSH from anywhere
+    rule.direction == "Inbound"
+    rule.protocol == "Tcp"
+    rule.destination_port_range == "22"
+    rule.access == "Allow"
+    rule.source_address_prefix == "*"
+
+    msg := sprintf("❌ NSG %s rule %s allows SSH from anywhere", [rc.address, rule.name])
 }
 
-# Warn for tag drifts (safe)
-warn[msg] {
-  some i
-  rc := input.resource_changes[i]
-  rc.type == "azurerm_network_security_group"
-  action_allowed(rc)
-  rc.change.before.tags != rc.change.after.tags
-
-  msg := sprintf("⚠️ Safe drift: Tags changed on %s", [rc.address])
-}
+# Add more NSG rules here as needed, e.g., open RDP, wide CIDR ranges
