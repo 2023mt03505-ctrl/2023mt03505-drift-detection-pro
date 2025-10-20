@@ -1,8 +1,8 @@
-name: Drift Detection, Remediation & AI Intelligence
+name: Multi-Cloud Drift Detection, Remediation & AI Intelligence
 
 on:
   schedule:
-    - cron: "0 */3 * * *"   # Runs every 3 hours
+    - cron: "0 */3 * * *"   # every 3 hours
   workflow_dispatch:
 
 permissions:
@@ -14,30 +14,57 @@ jobs:
     name: Drift Detection & Auto-Remediation
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        cloud: [azure, aws]   # 👈 Parallel runs for both clouds
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Azure login (OIDC)
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.7
 
+      ############################################
+      # ☁️ AZURE LOGIN (OIDC)
+      ############################################
+      - name: Azure login (OIDC)
+        if: matrix.cloud == 'azure'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      ############################################
+      # ☁️ AWS LOGIN (OIDC)
+      ############################################
+      - name: Configure AWS Credentials (OIDC)
+        if: matrix.cloud == 'aws'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-south-1
+
+      # ✅ Verify AWS OIDC works
+      - name: Verify AWS OIDC Login
+        if: matrix.cloud == 'aws'
+        run: |
+          echo "🔍 Checking AWS identity..."
+          aws sts get-caller-identity
+          echo "✅ AWS OIDC login succeeded."
+
+      ############################################
+      # 🔧 TERRAFORM INIT
+      ############################################
       - name: Terraform Init
         run: terraform init -reconfigure
-        env:
-          ARM_USE_OIDC: 'true'
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      ############################################
+      # 🧠 CONTEST POLICIES (OPA)
+      ############################################
       - name: Install Conftest (OPA)
         run: |
           CONFTEST_VERSION=0.52.0
@@ -46,7 +73,10 @@ jobs:
           sudo mv conftest /usr/local/bin/
           conftest --version
 
-      - name: Set up Python
+      ############################################
+      # 🐍 PYTHON SETUP
+      ############################################
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
@@ -54,24 +84,30 @@ jobs:
       - name: Install Python dependencies
         run: |
           python3 -m pip install --upgrade pip
-          pip install pandas joblib
+          pip install pandas joblib scikit-learn
 
+      ############################################
+      # 🧩 DRIFT DETECTION & AUTO-REMEDIATION
+      ############################################
       - name: Run Drift Detection & Auto-Remediation
-        run: bash scripts/drift-check.sh
+        run: |
+          echo "🔎 Running drift check for ${{ matrix.cloud }}..."
+          bash scripts/drift-check.sh
         continue-on-error: true
-        env:
-          ARM_USE_OIDC: 'true'
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      ############################################
+      # 📤 UPLOAD LOGS
+      ############################################
       - name: Upload drift logs
         uses: actions/upload-artifact@v4
         with:
-          name: drift-logs
+          name: drift-logs-${{ matrix.cloud }}
           path: data/
           if-no-files-found: warn
 
+  ############################################
+  # 🤖 AI DRIFT CLASSIFICATION
+  ############################################
   ai-drift:
     name: AI Drift Classification
     runs-on: ubuntu-latest
@@ -85,7 +121,6 @@ jobs:
       - name: Download drift logs
         uses: actions/download-artifact@v4
         with:
-          name: drift-logs
           path: data/
 
       - name: Setup Python
@@ -119,11 +154,6 @@ jobs:
       - name: Terraform Init for Remediation
         if: failure()
         run: terraform init -reconfigure
-        env:
-          ARM_USE_OIDC: 'true'
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Auto-remediate if risky drift detected
         if: failure()
