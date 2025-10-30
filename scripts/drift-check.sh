@@ -1,26 +1,47 @@
 #!/bin/bash
 set -euo pipefail
 
-# =========================
-# Azure authentication validation
-# =========================
-: "${ARM_CLIENT_ID:?Missing ARM_CLIENT_ID}"
-: "${ARM_TENANT_ID:?Missing ARM_TENANT_ID}"
-: "${ARM_SUBSCRIPTION_ID:?Missing ARM_SUBSCRIPTION_ID}"
+CLOUD=${1:-}
+if [[ -z "$CLOUD" ]]; then
+  echo "❌ Usage: bash scripts/drift-check.sh <cloud>"
+  exit 1
+fi
 
-export ARM_USE_OIDC="${ARM_USE_OIDC:-true}"
+WORKDIR="./${CLOUD}"
+LOGDIR="${WORKDIR}/data"
+mkdir -p "$LOGDIR"
 
-mkdir -p data
+echo "🌐 Starting drift detection for: $CLOUD"
+
+# =========================
+# Cloud-specific environment setup
+# =========================
+if [[ "$CLOUD" == "azure" ]]; then
+  echo "🔹 Validating Azure OIDC environment..."
+  : "${ARM_CLIENT_ID:?Missing ARM_CLIENT_ID}"
+  : "${ARM_TENANT_ID:?Missing ARM_TENANT_ID}"
+  : "${ARM_SUBSCRIPTION_ID:?Missing ARM_SUBSCRIPTION_ID}"
+  export ARM_USE_OIDC="${ARM_USE_OIDC:-true}"
+
+elif [[ "$CLOUD" == "aws" ]]; then
+  echo "🔹 Using AWS OIDC credentials (from GitHub Actions)..."
+  : "${AWS_REGION:?Missing AWS_REGION}"
+else
+  echo "❌ Unsupported cloud: $CLOUD"
+  exit 1
+fi
+
+cd "$WORKDIR"
 
 # =========================
 # Terraform init and plan
 # =========================
 echo "🔄 Terraform init..."
-terraform init -reconfigure
+terraform init -reconfigure -input=false
 
 echo "🔄 Running Terraform plan for drift detection..."
 terraform plan -out=tfplan.auto -input=false || {
-    echo "⚠️ Terraform plan failed"; exit 1;
+  echo "⚠️ Terraform plan failed"; exit 1;
 }
 
 # Convert plan to JSON for Conftest
@@ -38,25 +59,25 @@ conftest_status=$?
 set -e
 
 # Save Conftest logs
-echo "$conftest_output" | tee data/conftest_output.log
+echo "$conftest_output" | tee "$LOGDIR/conftest_output.log"
 
 timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # =========================
 # Parse drift classification and auto-remediate
 # =========================
-if echo "$conftest_output" | grep -q "FAIL\|❌"; then
+if echo "$conftest_output" | grep -qE "FAIL|❌"; then
     drift_type="unsafe"
     severity="high"
     action="terraform apply"
     echo "🚨 Unsafe drift detected → Auto-remediating..."
     terraform apply -auto-approve tfplan.auto
 
-elif echo "$conftest_output" | grep -q "WARN\|⚠️"; then
+elif echo "$conftest_output" | grep -qE "WARN|⚠️"; then
     drift_type="safe"
     severity="low"
     action="none"
-    echo "⚠️ Safe drift detected (no action)."
+    echo "⚠️ Safe drift detected (no remediation)."
 
 else
     drift_type="none"
@@ -66,11 +87,25 @@ else
 fi
 
 # =========================
-# Save drift history
+# Save drift history and JSON
 # =========================
-echo "$timestamp,$drift_type,$severity,$action" >> data/drift_history.csv
+echo "$timestamp,$CLOUD,$drift_type,$severity,$action" >> "$LOGDIR/drift_history.csv"
+
+cat <<EOF > "$LOGDIR/drift_results.json"
+{
+  "timestamp": "$timestamp",
+  "cloud": "$CLOUD",
+  "drift_type": "$drift_type",
+  "severity": "$severity",
+  "action": "$action"
+}
+EOF
 
 # =========================
-# Clear Azure session for security
+# Clear session (Azure only)
 # =========================
-az account clear
+if [[ "$CLOUD" == "azure" ]]; then
+  az account clear || true
+fi
+
+echo "✅ Drift detection completed for $CLOUD. Logs stored in $LOGDIR"

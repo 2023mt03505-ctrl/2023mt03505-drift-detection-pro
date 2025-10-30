@@ -2,7 +2,7 @@ name: Multi-Cloud Drift Detection, Remediation & AI Intelligence
 
 on:
   schedule:
-    - cron: "0 */3 * * *"   # every 3 hours
+    - cron: "0 */3 * * *"
   workflow_dispatch:
 
 permissions:
@@ -16,7 +16,7 @@ jobs:
 
     strategy:
       matrix:
-        cloud: [azure, aws]   # 👈 Parallel runs for both clouds
+        cloud: [azure, aws]
 
     steps:
       - name: Checkout repository
@@ -48,7 +48,6 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ap-south-1
 
-      # ✅ Verify AWS OIDC works
       - name: Verify AWS OIDC Login
         if: matrix.cloud == 'aws'
         run: |
@@ -57,13 +56,7 @@ jobs:
           echo "✅ AWS OIDC login succeeded."
 
       ############################################
-      # 🔧 TERRAFORM INIT
-      ############################################
-      - name: Terraform Init
-        run: terraform init -reconfigure
-
-      ############################################
-      # 🧠 CONTEST POLICIES (OPA)
+      # 🧠 Install Conftest (OPA)
       ############################################
       - name: Install Conftest (OPA)
         run: |
@@ -74,7 +67,7 @@ jobs:
           conftest --version
 
       ############################################
-      # 🐍 PYTHON SETUP
+      # 🐍 Python Setup (AI layer pre-req)
       ############################################
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -87,22 +80,27 @@ jobs:
           pip install pandas joblib scikit-learn
 
       ############################################
-      # 🧩 DRIFT DETECTION & AUTO-REMEDIATION
+      # 🧩 Unified Drift Detection & Auto-Remediation
       ############################################
-      - name: Run Drift Detection & Auto-Remediation
+      - name: Run Unified Drift Detection Script
         run: |
-          echo "🔎 Running drift check for ${{ matrix.cloud }}..."
-          bash scripts/drift-check.sh
+          echo "🔎 Running drift detection for ${{ matrix.cloud }}..."
+          bash scripts/drift-check.sh ${{ matrix.cloud }}
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AWS_REGION: ap-south-1
         continue-on-error: true
 
       ############################################
-      # 📤 UPLOAD LOGS
+      # 📤 Upload Logs
       ############################################
       - name: Upload drift logs
         uses: actions/upload-artifact@v4
         with:
           name: drift-logs-${{ matrix.cloud }}
-          path: data/
+          path: ./${{ matrix.cloud }}/data/
           if-no-files-found: warn
 
   ############################################
@@ -150,13 +148,3 @@ jobs:
       - name: Run AI Drift Risk Classifier
         run: python scripts/infer_drift_risk.py
         continue-on-error: true
-
-      - name: Terraform Init for Remediation
-        if: failure()
-        run: terraform init -reconfigure
-
-      - name: Auto-remediate if risky drift detected
-        if: failure()
-        run: |
-          echo "🚨 Triggering auto-remediation due to high-risk drift..."
-          terraform apply -auto-approve tfplan.auto
