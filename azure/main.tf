@@ -7,6 +7,10 @@ provider "azurerm" {
   client_id       = var.client_id
   client_secret   = var.client_secret
   tenant_id       = var.tenant_id
+
+  # Use these only if you're NOT running in GitHub Actions OIDC mode
+  client_id     = var.client_id != "" ? var.client_id : null
+  client_secret = var.client_secret != "" ? var.client_secret : null
 }
 
 locals {
