@@ -83,8 +83,9 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-dev g++ build-essential
+          echo "🔧 Installing Python dependencies (with retry)..."
+          sudo apt-get update -y -o Acquire::Retries=3
+          sudo apt-get install -y --no-install-recommends python3-dev g++ build-essential
           python3 -m pip install --upgrade pip setuptools wheel
           pip install --no-cache-dir --upgrade \
             numpy==1.26.4 \
