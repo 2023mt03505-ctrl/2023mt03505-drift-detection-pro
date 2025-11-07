@@ -35,8 +35,6 @@ jobs:
          echo $TOKEN | cut -c1-40
          echo $TOKEN | jq -R 'split(".") | .[1] | @base64d | fromjson'
 
-
-
       ############################################
       # ☁️ AZURE LOGIN (OIDC)
       ############################################
@@ -46,9 +44,6 @@ jobs:
          client-id: ${{ secrets.AZURE_CLIENT_ID }}
          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-
-      
 
       ############################################
       # ☁️ AWS LOGIN (OIDC)
@@ -84,15 +79,16 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'   # ✅ Use stable LTS version (fully supported by pandas/scikit-learn)
+          python-version: '3.11'   # ✅ Stable version fully supported by ML libs
 
       - name: Install Python dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-dev build-essential
           python3 -m pip install --upgrade pip setuptools wheel
-          pip install --no-cache-dir pandas==2.2.3 scikit-learn==1.5.2 joblib==1.4.2 numpy==1.26.4
-
+          pip install --no-cache-dir --prefer-binary \
+            pandas==2.2.3 \
+            scikit-learn==1.5.2 \
+            joblib==1.4.2 \
+            numpy==1.26.4
 
       ############################################
       # 🧩 Unified Drift Detection & Auto-Remediation
@@ -163,4 +159,3 @@ jobs:
       - name: Run AI Drift Risk Classifier
         run: python scripts/infer_drift_risk.py
         continue-on-error: true
-
