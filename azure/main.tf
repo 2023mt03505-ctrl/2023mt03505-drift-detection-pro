@@ -3,10 +3,8 @@
 ###########################################
 provider "azurerm" {
   features {}
-  subscription_id = var.subscription_id
-  client_id       = var.client_id
-  client_secret   = var.client_secret
-  tenant_id       = var.tenant_id
+
+  use_oidc        = true
 
   # Use these only if you're NOT running in GitHub Actions OIDC mode
   #client_id     = var.client_id != "" ? var.client_id : null
