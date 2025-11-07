@@ -27,13 +27,12 @@ jobs:
         with:
           terraform_version: 1.9.7
 
-      - name: Debug OIDC token
+      - name: Debug repo info
         if: matrix.cloud == 'azure'
         run: |
-          echo "Requesting GitHub OIDC token..."
-          TOKEN=$(curl -s -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-                 "$ACTIONS_ID_TOKEN_REQUEST_URL" | jq -r '.value')
-          echo "Token prefix: ${TOKEN:0:40}..."
+         echo "Repository: $GITHUB_REPOSITORY"
+         echo "Branch: $GITHUB_REF"
+
 
       ############################################
       # ☁️ AZURE LOGIN (OIDC)
