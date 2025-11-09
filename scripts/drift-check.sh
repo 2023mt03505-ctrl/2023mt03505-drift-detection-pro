@@ -55,6 +55,9 @@ echo "🔹 Converting plan to JSON..."
 terraform show -json tfplan.auto > tfplan.json
 jq '.resource_changes' tfplan.json > "$LOGDIR/resource_changes.json"
 
+# Count total resources
+resource_count=$(jq 'length' "$LOGDIR/resource_changes.json")
+
 # =========================
 # ✅ Run Conftest policy validation
 # =========================
@@ -65,25 +68,29 @@ conftest_output=$(conftest test "$WORKDIR/tfplan.json" \
 conftest_status=$?
 set -e
 
-# Always ensure log directory exists before tee
-mkdir -p "$LOGDIR"
-
-# Save Conftest logs safely
+# Save Conftest logs
 echo "$conftest_output" | tee "$LOGDIR/conftest_output.log"
+
+# Count fails and warnings
+fail_count=$(echo "$conftest_output" | grep -cE "FAIL|❌" || echo 0)
+warn_count=$(echo "$conftest_output" | grep -cE "WARN|⚠️" || echo 0)
+
+# Collect failed resource addresses
+failed_resources=$(echo "$conftest_output" | grep -E "FAIL|❌" | awk '{print $2}' | jq -R -s -c 'split("\n")[:-1]')
 
 timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # =========================
-# Parse drift classification and auto-remediate
+# Determine drift type & optionally auto-remediate
 # =========================
-if echo "$conftest_output" | grep -qE "FAIL|❌"; then
+if [[ $fail_count -gt 0 ]]; then
     drift_type="unsafe"
     severity="high"
     action="terraform apply"
     echo "🚨 Unsafe drift detected → Auto-remediating..."
     terraform apply -auto-approve tfplan.auto
 
-elif echo "$conftest_output" | grep -qE "WARN|⚠️"; then
+elif [[ $warn_count -gt 0 ]]; then
     drift_type="safe"
     severity="low"
     action="none"
@@ -97,19 +104,26 @@ else
 fi
 
 # =========================
-# Save drift history and JSON
+# Save unified JSON for GitHub Actions / Teams
 # =========================
-echo "$timestamp,$CLOUD,$drift_type,$severity,$action" >> "$LOGDIR/drift_history.csv"
-
 cat <<EOF > "$LOGDIR/drift_results.json"
 {
   "timestamp": "$timestamp",
   "cloud": "$CLOUD",
   "drift_type": "$drift_type",
   "severity": "$severity",
-  "action": "$action"
+  "action": "$action",
+  "resource_count": $resource_count,
+  "fail_count": $fail_count,
+  "warn_count": $warn_count,
+  "failed_resources": $failed_resources
 }
 EOF
+
+# =========================
+# Save drift history CSV (optional)
+# =========================
+echo "$timestamp,$CLOUD,$drift_type,$severity,$action,$resource_count,$fail_count,$warn_count" >> "$LOGDIR/drift_history.csv"
 
 # =========================
 # Session cleanup
