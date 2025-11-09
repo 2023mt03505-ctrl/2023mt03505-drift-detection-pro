@@ -50,11 +50,11 @@ terraform show -json tfplan.auto > tfplan.json
 jq '.resource_changes' tfplan.json > data/resource_changes.json
 
 # =========================
-# Run Conftest policy validation
+# Run Conftest policy validation (🔧 updated path)
 # =========================
 echo "🔎 Running Conftest policy validation..."
 set +e
-conftest_output=$(conftest test tfplan.json --policy policy/ --all-namespaces 2>&1)
+conftest_output=$(conftest test tfplan.json --policy ../policy/ --all-namespaces 2>&1)
 conftest_status=$?
 set -e
 
