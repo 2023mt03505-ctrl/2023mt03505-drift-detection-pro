@@ -19,7 +19,7 @@
   type        = string
 }
 
-variable "region_index" {
+#variable "region_index" {
   description = "Index of the region to use from candidate list"
   type        = number
   default     = 0
