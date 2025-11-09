@@ -102,10 +102,13 @@ cat <<EOF > "$LOGDIR/drift_results.json"
 EOF
 
 # =========================
-# Clear session (Azure only)
+# Session cleanup
 # =========================
 if [[ "$CLOUD" == "azure" ]]; then
+  echo "🔹 Clearing Azure session..."
   az account clear || true
+elif [[ "$CLOUD" == "aws" ]]; then
+  echo "🔹 AWS OIDC session handled automatically — no cleanup needed."
 fi
 
 echo "✅ Drift detection completed for $CLOUD. Logs stored in $LOGDIR"
