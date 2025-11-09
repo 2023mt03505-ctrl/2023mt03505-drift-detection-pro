@@ -45,6 +45,7 @@ deny[msg] {
     msg := sprintf("❌ S3 Bucket Public Access Block disabled (block_public_policy) for %s", [rc.address])
 }
 
+# ✅ Fixed: split ACL checks to avoid parse error
 deny[msg] {
     some i
     rc := input.resource_changes[i]
@@ -53,8 +54,19 @@ deny[msg] {
     action_allowed(rc)
 
     acl := rc.change.after.acl
-    (acl == "public-read") or (acl == "public-read-write")
+    acl == "public-read"
+    msg := sprintf("❌ S3 Bucket ACL allows public access (%s)", [rc.address])
+}
 
+deny[msg] {
+    some i
+    rc := input.resource_changes[i]
+
+    rc.type == "aws_s3_bucket_acl"
+    action_allowed(rc)
+
+    acl := rc.change.after.acl
+    acl == "public-read-write"
     msg := sprintf("❌ S3 Bucket ACL allows public access (%s)", [rc.address])
 }
 

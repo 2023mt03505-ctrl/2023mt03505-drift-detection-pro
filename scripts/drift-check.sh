@@ -48,5 +48,77 @@ terraform plan -out=tfplan.auto -input=false || {
   echo "⚠️ Terraform plan failed"; exit 1;
 }
 
-# Convert plan to JSON for Conftest
-echo "🔹 Converting p
+# =========================
+# Convert plan to JSON
+# =========================
+echo "🔹 Converting plan to JSON..."
+terraform show -json tfplan.auto > tfplan.json
+jq '.resource_changes' tfplan.json > data/resource_changes.json
+
+# =========================
+# ✅ Run Conftest policy validation (absolute log path fix)
+# =========================
+echo "🔎 Running Conftest policy validation..."
+set +e
+conftest_output=$(conftest test "$WORKDIR/tfplan.json" \
+  --policy "$REPO_ROOT/policy" --all-namespaces 2>&1)
+conftest_status=$?
+set -e
+
+# Always ensure log directory exists before tee
+mkdir -p "$LOGDIR"
+
+# Save Conftest logs safely
+echo "$conftest_output" | tee "$LOGDIR/conftest_output.log"
+
+timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+# =========================
+# Parse drift classification and auto-remediate
+# =========================
+if echo "$conftest_output" | grep -qE "FAIL|❌"; then
+    drift_type="unsafe"
+    severity="high"
+    action="terraform apply"
+    echo "🚨 Unsafe drift detected → Auto-remediating..."
+    terraform apply -auto-approve tfplan.auto
+
+elif echo "$conftest_output" | grep -qE "WARN|⚠️"; then
+    drift_type="safe"
+    severity="low"
+    action="none"
+    echo "⚠️ Safe drift detected (no remediation)."
+
+else
+    drift_type="none"
+    severity="none"
+    action="none"
+    echo "✅ No drift detected."
+fi
+
+# =========================
+# Save drift history and JSON
+# =========================
+echo "$timestamp,$CLOUD,$drift_type,$severity,$action" >> "$LOGDIR/drift_history.csv"
+
+cat <<EOF > "$LOGDIR/drift_results.json"
+{
+  "timestamp": "$timestamp",
+  "cloud": "$CLOUD",
+  "drift_type": "$drift_type",
+  "severity": "$severity",
+  "action": "$action"
+}
+EOF
+
+# =========================
+# Session cleanup
+# =========================
+if [[ "$CLOUD" == "azure" ]]; then
+  echo "🔹 Clearing Azure session..."
+  az account clear || true
+elif [[ "$CLOUD" == "aws" ]]; then
+  echo "🔹 AWS OIDC session handled automatically — no cleanup needed."
+fi
+
+echo "✅ Drift detection completed for $CLOUD. Logs stored in $LOGDIR"
