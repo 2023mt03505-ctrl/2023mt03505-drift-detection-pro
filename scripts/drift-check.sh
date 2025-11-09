@@ -7,8 +7,10 @@ if [[ -z "$CLOUD" ]]; then
   exit 1
 fi
 
-WORKDIR="./${CLOUD}"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WORKDIR="${REPO_ROOT}/${CLOUD}"
 LOGDIR="${WORKDIR}/data"
+
 mkdir -p "$LOGDIR"
 
 echo "🌐 Starting drift detection for: $CLOUD"
@@ -50,11 +52,12 @@ terraform show -json tfplan.auto > tfplan.json
 jq '.resource_changes' tfplan.json > data/resource_changes.json
 
 # =========================
-# Run Conftest policy validation (🔧 updated path)
+# Run Conftest policy validation (✅ fixed relative paths)
 # =========================
 echo "🔎 Running Conftest policy validation..."
 set +e
-conftest_output=$(conftest test tfplan.json --policy ../policy/ --all-namespaces 2>&1)
+conftest_output=$(conftest test "$WORKDIR/tfplan.json" \
+  --policy "$REPO_ROOT/policy" --all-namespaces 2>&1)
 conftest_status=$?
 set -e
 
