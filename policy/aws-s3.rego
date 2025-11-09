@@ -28,6 +28,7 @@ deny[msg] {
     action_allowed(rc)
 
     pab := rc.change.after
+
     pab.block_public_acls == false
     msg := sprintf("❌ S3 Bucket Public Access Block disabled (block_public_acls) for %s", [rc.address])
 }
@@ -52,19 +53,8 @@ deny[msg] {
     action_allowed(rc)
 
     acl := rc.change.after.acl
-    acl == "public-read"
-    msg := sprintf("❌ S3 Bucket ACL allows public access (%s)", [rc.address])
-}
+    (acl == "public-read") or (acl == "public-read-write")
 
-deny[msg] {
-    some i
-    rc := input.resource_changes[i]
-
-    rc.type == "aws_s3_bucket_acl"
-    action_allowed(rc)
-
-    acl := rc.change.after.acl
-    acl == "public-read-write"
     msg := sprintf("❌ S3 Bucket ACL allows public access (%s)", [rc.address])
 }
 
