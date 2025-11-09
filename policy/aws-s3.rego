@@ -29,7 +29,6 @@ deny[msg] {
 
     pab := rc.change.after
 
-    # Any of the public access blocks being false is unsafe
     pab.block_public_acls == false
     msg := sprintf("❌ S3 Bucket Public Access Block disabled (block_public_acls) for %s", [rc.address])
 }
@@ -55,6 +54,7 @@ deny[msg] {
 
     acl := rc.change.after.acl
     (acl == "public-read" or acl == "public-read-write")
+
     msg := sprintf("❌ S3 Bucket ACL allows public access (%s)", [rc.address])
 }
 
