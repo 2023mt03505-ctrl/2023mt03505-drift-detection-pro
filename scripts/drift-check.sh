@@ -7,17 +7,21 @@ if [[ -z "$CLOUD" ]]; then
   exit 1
 fi
 
+# -----------------------------
+# Define paths
+# -----------------------------
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKDIR="${REPO_ROOT}/${CLOUD}"
 LOGDIR="${WORKDIR}/data"
 
+# Always ensure log directory exists (important for GitHub Actions)
 mkdir -p "$LOGDIR"
 
 echo "🌐 Starting drift detection for: $CLOUD"
 
-# =========================
+# -----------------------------
 # Cloud-specific environment setup
-# =========================
+# -----------------------------
 if [[ "$CLOUD" == "azure" ]]; then
   echo "🔹 Validating Azure OIDC environment..."
   : "${ARM_CLIENT_ID:?Missing ARM_CLIENT_ID}"
@@ -35,9 +39,9 @@ fi
 
 cd "$WORKDIR"
 
-# =========================
+# -----------------------------
 # Terraform init and plan
-# =========================
+# -----------------------------
 echo "🔄 Terraform init..."
 terraform init -reconfigure -input=false
 
@@ -46,14 +50,16 @@ terraform plan -out=tfplan.auto -input=false || {
   echo "⚠️ Terraform plan failed"; exit 1;
 }
 
+# -----------------------------
 # Convert plan to JSON for Conftest
+# -----------------------------
 echo "🔹 Converting plan to JSON..."
 terraform show -json tfplan.auto > tfplan.json
-jq '.resource_changes' tfplan.json > data/resource_changes.json
+jq '.resource_changes' tfplan.json > "$LOGDIR/resource_changes.json"
 
-# =========================
-# Run Conftest policy validation (✅ fixed relative paths)
-# =========================
+# -----------------------------
+# Run Conftest policy validation
+# -----------------------------
 echo "🔎 Running Conftest policy validation..."
 set +e
 conftest_output=$(conftest test "$WORKDIR/tfplan.json" \
@@ -61,14 +67,14 @@ conftest_output=$(conftest test "$WORKDIR/tfplan.json" \
 conftest_status=$?
 set -e
 
-# Save Conftest logs
+# Save Conftest logs safely
 echo "$conftest_output" | tee "$LOGDIR/conftest_output.log"
 
 timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-# =========================
+# -----------------------------
 # Parse drift classification and auto-remediate
-# =========================
+# -----------------------------
 if echo "$conftest_output" | grep -qE "FAIL|❌"; then
     drift_type="unsafe"
     severity="high"
@@ -89,9 +95,9 @@ else
     echo "✅ No drift detected."
 fi
 
-# =========================
+# -----------------------------
 # Save drift history and JSON
-# =========================
+# -----------------------------
 echo "$timestamp,$CLOUD,$drift_type,$severity,$action" >> "$LOGDIR/drift_history.csv"
 
 cat <<EOF > "$LOGDIR/drift_results.json"
@@ -104,9 +110,9 @@ cat <<EOF > "$LOGDIR/drift_results.json"
 }
 EOF
 
-# =========================
+# -----------------------------
 # Session cleanup
-# =========================
+# -----------------------------
 if [[ "$CLOUD" == "azure" ]]; then
   echo "🔹 Clearing Azure session..."
   az account clear || true
