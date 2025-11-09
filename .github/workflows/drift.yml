@@ -69,13 +69,45 @@ jobs:
           path: ./azure/data/
           if-no-files-found: warn
 
+      - name: Send Azure Teams Notification
+        if: always()
+        shell: pwsh
+        run: |
+          $webhookUrl = "${{ secrets.TEAMS_WEBHOOK_URL }}"
+          $driftFile = "./azure/data/drift_results.json"
+          if (Test-Path $driftFile) {
+              $drift = Get-Content $driftFile | ConvertFrom-Json
+          } else {
+              $drift = @{ cloud="Azure"; drift_type="unknown"; severity="unknown"; action="unknown" }
+          }
+          $color = if ($drift.drift_type -eq "unsafe") { "Attention" } elseif ($drift.drift_type -eq "safe") { "Warning" } else { "Good" }
+          $body = @{
+              attachments = @(
+                  @{
+                      contentType = "application/vnd.microsoft.card.adaptive"
+                      content = @{
+                          '$schema' = "http://adaptivecards.io/schemas/adaptive-card.json"
+                          type      = "AdaptiveCard"
+                          version   = "1.4"
+                          body      = @(
+                              @{ type="TextBlock"; text="☁️ Cloud: $($drift.cloud)"; weight="Bolder"; color=$color },
+                              @{ type="TextBlock"; text="Drift Type: $($drift.drift_type)" },
+                              @{ type="TextBlock"; text="Severity: $($drift.severity)" },
+                              @{ type="TextBlock"; text="Action Taken: $($drift.action)" }
+                          )
+                      }
+                  }
+              )
+          } | ConvertTo-Json -Depth 10
+          Invoke-RestMethod -Uri $webhookUrl -Method Post -Body $body -ContentType "application/json"
+
   ############################################
   # ☁️ 2️⃣ AWS DRIFT DETECTION (depends on Azure)
   ############################################
   aws-drift:
     name: AWS Drift Detection & Auto-Remediation
     runs-on: ubuntu-latest
-    needs: azure-drift   # 👈 ensures Azure runs first
+    needs: azure-drift
 
     steps:
       - name: Checkout repository
@@ -93,7 +125,6 @@ jobs:
           tar -xzf conftest.tgz
           sudo mv conftest /usr/local/bin/
           conftest --version
-
 
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -131,6 +162,38 @@ jobs:
           name: drift-logs-aws
           path: ./aws/data/
           if-no-files-found: warn
+
+      - name: Send AWS Teams Notification
+        if: always()
+        shell: pwsh
+        run: |
+          $webhookUrl = "${{ secrets.TEAMS_WEBHOOK_URL }}"
+          $driftFile = "./aws/data/drift_results.json"
+          if (Test-Path $driftFile) {
+              $drift = Get-Content $driftFile | ConvertFrom-Json
+          } else {
+              $drift = @{ cloud="AWS"; drift_type="unknown"; severity="unknown"; action="unknown" }
+          }
+          $color = if ($drift.drift_type -eq "unsafe") { "Attention" } elseif ($drift.drift_type -eq "safe") { "Warning" } else { "Good" }
+          $body = @{
+              attachments = @(
+                  @{
+                      contentType = "application/vnd.microsoft.card.adaptive"
+                      content = @{
+                          '$schema' = "http://adaptivecards.io/schemas/adaptive-card.json"
+                          type      = "AdaptiveCard"
+                          version   = "1.4"
+                          body      = @(
+                              @{ type="TextBlock"; text="☁️ Cloud: $($drift.cloud)"; weight="Bolder"; color=$color },
+                              @{ type="TextBlock"; text="Drift Type: $($drift.drift_type)" },
+                              @{ type="TextBlock"; text="Severity: $($drift.severity)" },
+                              @{ type="TextBlock"; text="Action Taken: $($drift.action)" }
+                          )
+                      }
+                  }
+              )
+          } | ConvertTo-Json -Depth 10
+          Invoke-RestMethod -Uri $webhookUrl -Method Post -Body $body -ContentType "application/json"
 
   ############################################
   # 🤖 3️⃣ AI DRIFT CLASSIFICATION (after both)
@@ -177,3 +240,36 @@ jobs:
       - name: Run AI Drift Risk Classifier
         run: python scripts/infer_drift_risk.py
         continue-on-error: true
+
+      - name: Send AI Drift Teams Notification
+        if: always()
+        shell: pwsh
+        run: |
+          $webhookUrl = "${{ secrets.TEAMS_WEBHOOK_URL }}"
+          $driftFile = "data/drift_results.json"
+          if (Test-Path $driftFile) {
+              $drift = Get-Content $driftFile | ConvertFrom-Json
+          } else {
+              $drift = @{ cloud="AI"; drift_type="unknown"; severity="unknown"; action="unknown" }
+          }
+          $color = if ($drift.drift_type -eq "unsafe") { "Attention" } elseif ($drift.drift_type -eq "safe") { "Warning" } else { "Good" }
+          $body = @{
+              attachments = @(
+                  @{
+                      contentType = "application/vnd.microsoft.card.adaptive"
+                      content = @{
+                          '$schema' = "http://adaptivecards.io/schemas/adaptive-card.json"
+                          type      = "AdaptiveCard"
+                          version   = "1.4"
+                          body      = @(
+                              @{ type="TextBlock"; text="🤖 AI Drift Summary"; weight="Bolder"; color=$color },
+                              @{ type="TextBlock"; text="Cloud: $($drift.cloud)" },
+                              @{ type="TextBlock"; text="Drift Type: $($drift.drift_type)" },
+                              @{ type="TextBlock"; text="Severity: $($drift.severity)" },
+                              @{ type="TextBlock"; text="Action Taken: $($drift.action)" }
+                          )
+                      }
+                  }
+              )
+          } | ConvertTo-Json -Depth 10
+          Invoke-RestMethod -Uri $webhookUrl -Method Post -Body $body -ContentType "application/json"
