@@ -23,22 +23,38 @@ action_allowed(rc) {
 deny[msg] {
     some i
     rc := input.resource_changes[i]
+
     rc.type == "aws_s3_bucket_public_access_block"
     action_allowed(rc)
+
     pab := rc.change.after
+
+    # Any of the public access blocks being false is unsafe
     pab.block_public_acls == false
-    pab.block_public_policy == false
-    pab.ignore_public_acls == false
-    pab.restrict_public_buckets == false
-    msg := sprintf("❌ S3 Bucket Public Access Block disabled for %s", [rc.address])
+    msg := sprintf("❌ S3 Bucket Public Access Block disabled (block_public_acls) for %s", [rc.address])
 }
 
 deny[msg] {
     some i
     rc := input.resource_changes[i]
+
+    rc.type == "aws_s3_bucket_public_access_block"
+    action_allowed(rc)
+
+    pab := rc.change.after
+    pab.block_public_policy == false
+    msg := sprintf("❌ S3 Bucket Public Access Block disabled (block_public_policy) for %s", [rc.address])
+}
+
+deny[msg] {
+    some i
+    rc := input.resource_changes[i]
+
     rc.type == "aws_s3_bucket_acl"
     action_allowed(rc)
-    rc.change.after.acl == "public-read" or rc.change.after.acl == "public-read-write"
+
+    acl := rc.change.after.acl
+    (acl == "public-read" or acl == "public-read-write")
     msg := sprintf("❌ S3 Bucket ACL allows public access (%s)", [rc.address])
 }
 
@@ -48,8 +64,10 @@ deny[msg] {
 deny[msg] {
     some i
     rc := input.resource_changes[i]
+
     rc.type == "aws_s3_bucket_server_side_encryption_configuration"
     action_allowed(rc)
+
     encryption := rc.change.after.rule.apply_server_side_encryption_by_default
     not encryption.sse_algorithm
     msg := sprintf("❌ S3 Bucket %s has no server-side encryption", [rc.address])
@@ -61,8 +79,10 @@ deny[msg] {
 deny[msg] {
     some i
     rc := input.resource_changes[i]
+
     rc.type == "aws_s3_bucket_versioning"
     action_allowed(rc)
+
     rc.change.after.status != "Enabled"
     msg := sprintf("❌ S3 Bucket %s versioning is not enabled", [rc.address])
 }
@@ -73,8 +93,10 @@ deny[msg] {
 warn[msg] {
     some i
     rc := input.resource_changes[i]
+
     rc.type == "aws_s3_bucket"
     action_allowed(rc)
+
     rc.change.before.tags != rc.change.after.tags
     msg := sprintf("⚠️ Safe drift: Tags changed on %s", [rc.address])
 }
