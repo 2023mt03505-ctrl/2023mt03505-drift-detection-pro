@@ -43,8 +43,8 @@ cd "$WORKDIR"
 echo "🔄 Terraform init..."
 terraform init -reconfigure -input=false
 
-echo "🔄 Running Terraform plan for drift detection..."
-terraform plan -out=tfplan.auto -input=false || {
+echo "🔄 Running Terraform plan for drift detection (refreshing state)..."
+terraform plan -refresh=true -out=tfplan.auto -input=false || {
   echo "⚠️ Terraform plan failed"; exit 1;
 }
 
@@ -53,10 +53,10 @@ terraform plan -out=tfplan.auto -input=false || {
 # =========================
 echo "🔹 Converting plan to JSON..."
 terraform show -json tfplan.auto > tfplan.json
-jq '.resource_changes' tfplan.json > data/resource_changes.json
+jq '.resource_changes' tfplan.json > "$LOGDIR/resource_changes.json"
 
 # =========================
-# ✅ Run Conftest policy validation (absolute log path fix)
+# ✅ Run Conftest policy validation
 # =========================
 echo "🔎 Running Conftest policy validation..."
 set +e
