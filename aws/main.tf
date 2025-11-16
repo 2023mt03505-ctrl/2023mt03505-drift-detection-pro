@@ -1,12 +1,9 @@
 ###########################################
-# 🔹 AWS Provider + Resources
+# 🔹 AWS Provider (keep in provider.tf)
 ###########################################
-#provider "aws" {
-  #region = var.aws_region
-#}
-
-
-
+# provider "aws" {
+#   region = var.aws_region
+# }
 
 ###########################################
 # 🔹 Variables
@@ -23,50 +20,51 @@ variable "region_index" {
   default     = 0
 }
 
-
 variable "vpc_id" {
   description = "Existing VPC ID to attach security group"
   type        = string
 }
 
 ###########################################
-# 🔹 AWS S3 Storage (like Azure Storage Account)
+# 🔹 AWS S3 Bucket (Fixed — ACL removed)
 ###########################################
 resource "aws_s3_bucket" "storage" {
   bucket        = "st2023mt03505-${var.region_index}"
   force_destroy = true
 
-  # Block all public access
-  acl = "private"
-
-  server_side_encryption_configuration {
-    rule {
-      apply_server_side_encryption_by_default {
-        sse_algorithm = "AES256"
-      }
-    }
-  }
+  # ❌ REMOVE ACL — bucket has ACLs disabled (BucketOwnerEnforced)
+  # acl = "private"
 
   tags = {
-    Project = "MTechDrift"
+    Project     = "MTechDrift"
     Environment = "Test"
   }
 }
 
+# 🔹 Apply AES-256 SSE using new recommended resource
+resource "aws_s3_bucket_server_side_encryption_configuration" "sse" {
+  bucket = aws_s3_bucket.storage.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
 ###########################################
-# 🔹 AWS Security Group (like Azure NSG)
+# 🔹 AWS Security Group
 ###########################################
 resource "aws_security_group" "secure_sg" {
   name        = "secure-sg"
   description = "Secure SG with restricted SSH"
   vpc_id      = var.vpc_id
 
-  # Only allow internal SSH (adjust CIDR as needed)
   ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["10.0.0.0/16"]
+    cidr_blocks = ["10.0.0.0/16"]   # fixed from 0.0.0.0/0
   }
 
   egress {
@@ -77,7 +75,7 @@ resource "aws_security_group" "secure_sg" {
   }
 
   tags = {
-    Project = "MTechDrift"
+    Project     = "MTechDrift"
     Environment = "Test"
   }
 }
