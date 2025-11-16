@@ -1,9 +1,9 @@
 ###########################################
 # 🔹 AWS Provider + Resources
 ###########################################
-provider "aws" {
-  region = var.aws_region
-}
+#provider "aws" {
+  #region = var.aws_region
+#}
 
 
 
