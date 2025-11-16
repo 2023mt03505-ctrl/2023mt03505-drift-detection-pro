@@ -125,6 +125,12 @@ jobs:
           tar -xzf conftest.tgz
           sudo mv conftest /usr/local/bin/
           conftest --version
+         
+      - name: Terraform init (AWS backend)
+        run: |
+          cd aws
+          terraform init -reconfigure -input=false
+
 
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
