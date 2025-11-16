@@ -67,3 +67,4 @@ warn[msg] {
     rc.change.before.tags != rc.change.after.tags
     msg := sprintf("⚠️ Safe drift: Tags changed on %s", [rc.address])
 }
+
