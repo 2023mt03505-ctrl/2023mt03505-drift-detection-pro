@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -uo pipefail       # FIX 1: removed -e
 
 CLOUD=${1:-}
 if [[ -z "$CLOUD" ]]; then
@@ -55,28 +55,25 @@ echo "🔹 Converting plan to JSON..."
 terraform show -json tfplan.auto > tfplan.json
 jq '.resource_changes' tfplan.json > "$LOGDIR/resource_changes.json"
 
-# Count total resources
 resource_count=$(jq 'length' "$LOGDIR/resource_changes.json")
 
 # =========================
-# ✅ Run Conftest policy validation
+# Run Conftest
 # =========================
 echo "🔎 Running Conftest policy validation..."
 set +e
 conftest_output=$(conftest test "$WORKDIR/tfplan.json" \
   --policy "$REPO_ROOT/policy" --all-namespaces 2>&1)
-conftest_status=$?
-set -e
+set -u
 
-# Save Conftest logs
 echo "$conftest_output" | tee "$LOGDIR/conftest_output.log"
 
-# Count fails and warnings
 fail_count=$(echo "$conftest_output" | grep -cE "FAIL|❌" || echo 0)
 warn_count=$(echo "$conftest_output" | grep -cE "WARN|⚠️" || echo 0)
 
-# Collect failed resource addresses
-failed_resources=$(echo "$conftest_output" | grep -E "FAIL|❌" | awk '{print $2}' | jq -R -s -c 'split("\n")[:-1]')
+# FIX 2: safe grep to avoid script exit
+failed_resources=$(echo "$conftest_output" | grep -E "FAIL|❌" || true \
+  | awk '{print $2}' | jq -R -s -c 'split("\n")[:-1]')
 
 timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -104,7 +101,7 @@ else
 fi
 
 # =========================
-# Save unified JSON for GitHub Actions / Teams
+# Save unified JSON 
 # =========================
 cat <<EOF > "$LOGDIR/drift_results.json"
 {
@@ -121,7 +118,7 @@ cat <<EOF > "$LOGDIR/drift_results.json"
 EOF
 
 # =========================
-# Save drift history CSV (optional)
+# Save drift history
 # =========================
 echo "$timestamp,$CLOUD,$drift_type,$severity,$action,$resource_count,$fail_count,$warn_count" >> "$LOGDIR/drift_history.csv"
 
