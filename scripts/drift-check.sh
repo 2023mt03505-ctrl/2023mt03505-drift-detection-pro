@@ -101,6 +101,20 @@ else
 fi
 
 # =========================
+# AI FEATURE EXTRACTION & RISK INFERENCE
+# =========================
+echo "🤖 Running AI-based drift risk classification..."
+
+python "$REPO_ROOT/scripts/extract_drift_features.py" "$LOGDIR/resource_changes.json" || \
+  echo "⚠️ AI feature extraction fallback."
+
+python "$REPO_ROOT/scripts/train_drift_model.py" || \
+  echo "⚠️ AI model training skipped (model already exists)."
+
+python "$REPO_ROOT/scripts/infer_drift_risk.py" || \
+  echo "⚠️ AI inference could not run."
+
+# =========================
 # Save unified JSON 
 # =========================
 cat <<EOF > "$LOGDIR/drift_results.json"
@@ -116,13 +130,6 @@ cat <<EOF > "$LOGDIR/drift_results.json"
   "failed_resources": $failed_resources
 }
 EOF
-
-# =========================
-# ⭐ AI FIX (ONLY ADDITION YOU REQUESTED)
-# Convert single-object drift_results.json → AI-friendly array format
-# =========================
-jq -s '.' "$LOGDIR/drift_results.json" > "$LOGDIR/drift_results_ai.json"
-echo "🤖 AI-ready drift JSON generated → $LOGDIR/drift_results_ai.json"
 
 # =========================
 # Save drift history
