@@ -118,6 +118,13 @@ cat <<EOF > "$LOGDIR/drift_results.json"
 EOF
 
 # =========================
+# ⭐ AI FIX (ONLY ADDITION YOU REQUESTED)
+# Convert single-object drift_results.json → AI-friendly array format
+# =========================
+jq -s '.' "$LOGDIR/drift_results.json" > "$LOGDIR/drift_results_ai.json"
+echo "🤖 AI-ready drift JSON generated → $LOGDIR/drift_results_ai.json"
+
+# =========================
 # Save drift history
 # =========================
 echo "$timestamp,$CLOUD,$drift_type,$severity,$action,$resource_count,$fail_count,$warn_count" >> "$LOGDIR/drift_history.csv"

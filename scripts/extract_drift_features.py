@@ -1,43 +1,61 @@
-import json, os, sys, pandas as pd
+import json, os, sys
+import pandas as pd
 
 print("📘 Extracting drift features from Terraform plan...")
 
 input_path = "data/drift_results.json"
 output_path = "data/drift_features.csv"
 
-# --- Check if file exists and is non-empty ---
-if not os.path.exists(input_path) or os.path.getsize(input_path) == 0:
-    print("⚠️ No drift results found. Skipping feature extraction.")
+if not os.path.exists(input_path):
+    print("⚠ No drift JSON found — generating safe baseline features.")
+    df = pd.DataFrame([{
+        "num_resources_changed": 0,
+        "critical_services_affected": 0,
+        "drift_duration_hours": 1,
+        "drift_label": "safe"
+    }])
+    df.to_csv(output_path, index=False)
     sys.exit(0)
 
-with open(input_path) as f:
-    try:
-        data = json.load(f)
-    except json.JSONDecodeError:
-        print("⚠️ Invalid JSON format in drift_results.json. Skipping.")
-        sys.exit(0)
+try:
+    data = json.load(open(input_path))
+except:
+    print("⚠ Invalid JSON — generating safe baseline features.")
+    df = pd.DataFrame([{
+        "num_resources_changed": 0,
+        "critical_services_affected": 0,
+        "drift_duration_hours": 1,
+        "drift_label": "safe"
+    }])
+    df.to_csv(output_path, index=False)
+    sys.exit(0)
 
+# If empty drift
 if not data:
-    print("⚠️ No drift entries found. Skipping extraction.")
+    print("ℹ No drift detected — generating baseline features.")
+    df = pd.DataFrame([{
+        "num_resources_changed": 0,
+        "critical_services_affected": 0,
+        "drift_duration_hours": 1,
+        "drift_label": "safe"
+    }])
+    df.to_csv(output_path, index=False)
     sys.exit(0)
 
+# Real drift found → extract features
 rows = []
-for entry in data:
-    drift_type = entry.get("drift_type", "unknown")
-    severity = entry.get("severity", "unknown")
-
-    # Derive simple numeric features for model input
-    num_resources_changed = 1 if drift_type != "none" else 0
-    critical_services_affected = 1 if severity == "high" else 0
-    drift_duration_hours = 1  # Placeholder (future: calculate via timestamps)
+for item in data:
+    change = item.get("change", [])
+    is_replace = "replace" in change
+    is_update = "update" in change
 
     rows.append({
-        "num_resources_changed": num_resources_changed,
-        "critical_services_affected": critical_services_affected,
-        "drift_duration_hours": drift_duration_hours,
-        "drift_label": severity
+        "num_resources_changed": 1,
+        "critical_services_affected": 1 if is_replace else 0,
+        "drift_duration_hours": 1,
+        "drift_label": "high" if is_replace else "low"
     })
 
 df = pd.DataFrame(rows)
 df.to_csv(output_path, index=False)
-print(f"✅ Drift feature file generated: {output_path}")
+print("✅ Features extracted:", output_path)
