@@ -163,14 +163,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: drift-logs-azure
-          path: data/azure
+          path: azure
         continue-on-error: true
 
       - name: Download AWS logs
         uses: actions/download-artifact@v4
         with:
           name: drift-logs-aws
-          path: data/aws
+          path: aws
         continue-on-error: true
 
 
