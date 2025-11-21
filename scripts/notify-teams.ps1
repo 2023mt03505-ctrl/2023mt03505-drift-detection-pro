@@ -9,9 +9,10 @@ function Read-JsonIfExists($path) {
     return $null
 }
 
-$azure = Read-JsonIfExists "azure/data/drift_results.json"
-$aws   = Read-JsonIfExists "aws/data/drift_results.json"
-$ai    = Read-JsonIfExists "data/drift_results.json"
+# UPDATED → Correct drift JSON paths produced by your workflow
+$azure = Read-JsonIfExists "azure/data/terraform-drift.json"
+$aws   = Read-JsonIfExists "aws/data/terraform-drift.json"
+$ai    = Read-JsonIfExists "data/ai_results.json"
 
 # Default values if file missing
 $az = $azure  ? $azure  : @{ drift_type="none"; severity="none"; fail_count=0; warn_count=0 }
@@ -49,8 +50,8 @@ $card = @{
         @{
             type="FactSet"
             facts=@(
-                @{ title="Azure:"; value="Type: $($az.drift_type), Fails: $($az.fail_count), Warns: $($az.warn_count)" }
-                @{ title="AWS:";   value="Type: $($aw.drift_type), Fails: $($aw.fail_count), Warns: $($aw.warn_count)" }
+                @{ title="Azure:";   value="Type: $($az.drift_type), Fails: $($az.fail_count), Warns: $($az.warn_count)" }
+                @{ title="AWS:";     value="Type: $($aw.drift_type), Fails: $($aw.fail_count), Warns: $($aw.warn_count)" }
                 @{ title="AI Risk:"; value="Type: $($ai.drift_type), Severity: $($ai.severity)" }
             )
         }
