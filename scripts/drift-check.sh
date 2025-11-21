@@ -55,9 +55,11 @@ echo "🔹 Converting plan to JSON..."
 terraform show -json tfplan.auto > tfplan.json
 
 echo "🔹 Extracting resource_changes BEFORE remediation..."
-jq '.resource_changes' tfplan.json > "$LOGDIR/resource_changes.json"
+jq '.resource_changes' tfplan.json > "$LOGDIR/terraform-drift.json"
+echo "📄 Drift JSON saved to: $LOGDIR/terraform-drift.json"
 
-resource_count=$(jq 'length' "$LOGDIR/resource_changes.json")
+resource_count=$(jq 'length' "$LOGDIR/terraform-drift.json")
+
 
 # =========================
 # Run Conftest
@@ -83,7 +85,7 @@ timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 # =========================
 echo "🤖 Running AI-based drift risk classification (before remediation)..."
 
-python "$REPO_ROOT/scripts/extract_drift_features.py" "$LOGDIR/resource_changes.json" || \
+python "$REPO_ROOT/scripts/extract_drift_features.py" "$LOGDIR/terraform-drift.json" || \
   echo "⚠️ AI feature extraction fallback."
 
 python "$REPO_ROOT/scripts/train_drift_model.py" || \
