@@ -146,8 +146,9 @@ jobs:
           path: ./aws/data/
           if-no-files-found: warn
 
+          
   ############################################
-  # 🤖 3️⃣ AI Drift Classifier
+  # 🤖 3️⃣ AI Drift Classifier (FULL PIPELINE)
   ############################################
   ai-drift:
     name: AI Drift Classification
@@ -159,38 +160,63 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # ----------------------------------
+      # 📥 Download drift logs from both clouds
+      # ----------------------------------
       - name: Download Azure logs
         uses: actions/download-artifact@v4
         with:
           name: drift-logs-azure
-          path: azure
+          path: data/azure
         continue-on-error: true
 
       - name: Download AWS logs
         uses: actions/download-artifact@v4
         with:
           name: drift-logs-aws
-          path: aws
+          path: data/aws
         continue-on-error: true
 
-
+      # ----------------------------------
+      # 🐍 Python environment
+      # ----------------------------------
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install Python dependencies
         run: |
-          pip install pandas scikit-learn joblib
+          pip install pandas scikit-learn joblib numpy
 
-      #- name: Extract features
-        #run: python scripts/extract_drift_features.py
+      # ----------------------------------
+      # 🧬 1️⃣ Extract Features
+      # ----------------------------------
+      - name: Extract Drift Features
+        run: python scripts/extract_drift_features.py
 
-      #- name: Train model
-        #run: python scripts/train_drift_model.py
+      # ----------------------------------
+      # 🤖 2️⃣ Train Model
+      # ----------------------------------
+      - name: Train Drift Classifier
+        run: python scripts/train_drift_model.py
 
-      #- name: Inference
-        #run: python scripts/infer_drift_risk.py
+      # ----------------------------------
+      # 🧠 3️⃣ Run Inference
+      # ----------------------------------
+      - name: Predict Drift Risk
+        run: python scripts/infer_drift_risk.py
+
+      # ----------------------------------
+      # 📤 Upload AI results for Teams notification
+      # ----------------------------------
+      - name: Upload AI results
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-results
+          path: data/
+          if-no-files-found: warn
+
 
 
   ############################################
