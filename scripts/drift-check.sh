@@ -43,16 +43,18 @@ cd "$WORKDIR"
 echo "🔄 Terraform init..."
 terraform init -reconfigure -input=false
 
-echo "🔄 Running Terraform plan for drift detection (refreshing state)..."
+echo "🔄 Running Terraform plan for drift detection..."
 terraform plan -refresh=true -out=tfplan.auto -input=false || {
   echo "⚠️ Terraform plan failed"; exit 1;
 }
 
 # =========================
-# Convert plan to JSON
+# Convert plan to JSON (BEFORE remediation)
 # =========================
 echo "🔹 Converting plan to JSON..."
 terraform show -json tfplan.auto > tfplan.json
+
+echo "🔹 Extracting resource_changes BEFORE remediation..."
 jq '.resource_changes' tfplan.json > "$LOGDIR/resource_changes.json"
 
 resource_count=$(jq 'length' "$LOGDIR/resource_changes.json")
@@ -71,20 +73,34 @@ echo "$conftest_output" | tee "$LOGDIR/conftest_output.log"
 fail_count=$(echo "$conftest_output" | grep -cE "FAIL|❌" || echo 0)
 warn_count=$(echo "$conftest_output" | grep -cE "WARN|⚠️" || echo 0)
 
-# FIX 2: safe grep to avoid script exit
 failed_resources=$(echo "$conftest_output" | grep -E "FAIL|❌" || true \
   | awk '{print $2}' | jq -R -s -c 'split("\n")[:-1]')
 
 timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # =========================
-# Determine drift type & optionally auto-remediate
+# AI FEATURE EXTRACTION & RISK INFERENCE (PRE-REMEDIATION)
+# =========================
+echo "🤖 Running AI-based drift risk classification (before remediation)..."
+
+python "$REPO_ROOT/scripts/extract_drift_features.py" "$LOGDIR/resource_changes.json" || \
+  echo "⚠️ AI feature extraction fallback."
+
+python "$REPO_ROOT/scripts/train_drift_model.py" || \
+  echo "⚠️ AI model training skipped."
+
+python "$REPO_ROOT/scripts/infer_drift_risk.py" || \
+  echo "⚠️ AI inference could not run."
+
+# =========================
+# Decide Remediation AFTER AI
 # =========================
 if [[ $fail_count -gt 0 ]]; then
     drift_type="unsafe"
     severity="high"
     action="terraform apply"
-    echo "🚨 Unsafe drift detected → Auto-remediating..."
+
+    echo "🚨 Unsafe drift detected (AI + Policy) → Proceeding with auto-remediation..."
     terraform apply -auto-approve tfplan.auto
 
 elif [[ $warn_count -gt 0 ]]; then
@@ -99,20 +115,6 @@ else
     action="none"
     echo "✅ No drift detected."
 fi
-
-# =========================
-# AI FEATURE EXTRACTION & RISK INFERENCE
-# =========================
-echo "🤖 Running AI-based drift risk classification..."
-
-python "$REPO_ROOT/scripts/extract_drift_features.py" "$LOGDIR/resource_changes.json" || \
-  echo "⚠️ AI feature extraction fallback."
-
-python "$REPO_ROOT/scripts/train_drift_model.py" || \
-  echo "⚠️ AI model training skipped (model already exists)."
-
-python "$REPO_ROOT/scripts/infer_drift_risk.py" || \
-  echo "⚠️ AI inference could not run."
 
 # =========================
 # Save unified JSON 
