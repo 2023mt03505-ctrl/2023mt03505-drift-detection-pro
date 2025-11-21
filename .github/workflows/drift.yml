@@ -146,7 +146,7 @@ jobs:
           path: ./aws/data/
           if-no-files-found: warn
 
-          
+
   ############################################
   # 🤖 3️⃣ AI Drift Classifier (FULL PIPELINE)
   ############################################
@@ -193,7 +193,9 @@ jobs:
       # 🧬 1️⃣ Extract Features
       # ----------------------------------
       - name: Extract Drift Features
-        run: python scripts/extract_drift_features.py
+        run: |
+         python scripts/extract_drift_features.py data/azure/terraform-drift.json
+         python scripts/extract_drift_features.py data/aws/terraform-drift.json
 
       # ----------------------------------
       # 🤖 2️⃣ Train Model

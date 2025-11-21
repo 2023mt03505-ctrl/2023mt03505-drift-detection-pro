@@ -3,11 +3,17 @@ import pandas as pd
 
 print("📘 Extracting drift features from Terraform plan...")
 
-input_path = "data/drift_results.json"
+# -------- FIX: Accept file path from argument --------
+if len(sys.argv) > 1:
+    input_path = sys.argv[1]
+else:
+    input_path = "data/drift_results.json"  # fallback
+# ------------------------------------------------------
+
 output_path = "data/drift_features.csv"
 
 if not os.path.exists(input_path):
-    print("⚠ No drift JSON found — generating safe baseline features.")
+    print(f"⚠ No drift JSON found at {input_path} — generating safe baseline features.")
     df = pd.DataFrame([{
         "num_resources_changed": 0,
         "critical_services_affected": 0,
@@ -20,7 +26,7 @@ if not os.path.exists(input_path):
 try:
     data = json.load(open(input_path))
 except:
-    print("⚠ Invalid JSON — generating safe baseline features.")
+    print(f"⚠ Invalid JSON at {input_path} — generating safe baseline features.")
     df = pd.DataFrame([{
         "num_resources_changed": 0,
         "critical_services_affected": 0,
