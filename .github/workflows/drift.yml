@@ -159,10 +159,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download drift logs
+      - name: Download Azure logs
         uses: actions/download-artifact@v4
         with:
-          path: data/
+          name: drift-logs-azure
+          path: data/azure
+          continue-on-error: true
+
+      - name: Download AWS logs
+        uses: actions/download-artifact@v4
+        with:
+         name: drift-logs-aws
+         path: data/aws
+         continue-on-error: true
+
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -173,14 +183,14 @@ jobs:
         run: |
           pip install pandas scikit-learn joblib
 
-      - name: Extract features
-        run: python scripts/extract_drift_features.py
+      #- name: Extract features
+        #run: python scripts/extract_drift_features.py
 
-      - name: Train model
-        run: python scripts/train_drift_model.py
+      #- name: Train model
+        #run: python scripts/train_drift_model.py
 
-      - name: Inference
-        run: python scripts/infer_drift_risk.py
+      #- name: Inference
+        #run: python scripts/infer_drift_risk.py
 
 
   ############################################
