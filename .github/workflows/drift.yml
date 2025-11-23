@@ -65,7 +65,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: drift-logs-azure
-          path: ./data/azure/      # <- updated to match unified path
+          path: ./data/azure/
           if-no-files-found: warn
 
   ############################################
@@ -125,7 +125,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: drift-logs-aws
-          path: ./data/aws/      # <- updated to match unified path
+          path: ./data/aws/
           if-no-files-found: warn
 
   ############################################
@@ -155,13 +155,6 @@ jobs:
           path: data/aws
         continue-on-error: true
 
-      - name: Download AI logs
-        uses: actions/download-artifact@v4
-        with:
-          name: ai-results
-          path: data/ai      # <- unified
-        continue-on-error: true
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -182,13 +175,6 @@ jobs:
       - name: Predict Drift Risk
         run: python scripts/infer_drift_risk.py
 
-      - name: Upload AI results
-        uses: actions/upload-artifact@v4
-        with:
-          name: ai-results
-          path: data/ai/      # <- unified
-          if-no-files-found: warn
-
   ############################################
   # 📩 TEAMS NOTIFICATION (Azure + AWS + AI)
   ############################################
@@ -206,21 +192,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: drift-logs-azure
-          path: data/azure      # <- unified
+          path: data/azure
         continue-on-error: true
 
       - name: Download AWS logs
         uses: actions/download-artifact@v4
         with:
           name: drift-logs-aws
-          path: data/aws       # <- unified
-        continue-on-error: true
-
-      - name: Download AI logs
-        uses: actions/download-artifact@v4
-        with:
-          name: ai-results
-          path: data/ai       # <- unified
+          path: data/aws
         continue-on-error: true
 
       - name: DEBUG — Show directory structure before Teams notify
@@ -232,8 +211,6 @@ jobs:
       - name: Send Teams Adaptive Card
         shell: pwsh
         env:
-          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
-          GITHUB_RUN_ID: ${{ github.run_id }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK_URL }}
         run: |
           pwsh scripts/notify-teams.ps1
