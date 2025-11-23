@@ -13,12 +13,13 @@ function Read-JsonIfExists($path) {
     return $null
 }
 
-$azure = Read-JsonIfExists "azure/data/drift_results.json"
-$aws   = Read-JsonIfExists "aws/data/drift_results.json"
-$aiRisk = Read-JsonIfExists "data/drift_results.json"
+# FIXED PATHS (ONLY CHANGE REQUESTED)
+$azure = Read-JsonIfExists "azure/drift_results.json"
+$aws   = Read-JsonIfExists "aws/drift_results.json"
+$aiRisk = Read-JsonIfExists "ai/drift_results.json"
 
 ###############################################################################
-# 🔵 STRICT JSON VALIDATOR (added with ZERO changes to original logic)
+# 🔵 STRICT JSON VALIDATOR (ZERO LOGIC CHANGE — ONLY PATHS FIXED)
 ###############################################################################
 function Validate-Json($obj, $name) {
     if ($null -eq $obj) {
