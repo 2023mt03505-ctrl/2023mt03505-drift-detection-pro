@@ -6,18 +6,29 @@ foreach ($c in $clouds) {
     if (Test-Path $file) {
         try {
             $json = Get-Content $file | ConvertFrom-Json
-            $allDrifts += $json
+            if ($json -ne $null -and $json.Count -gt 0) {
+                $allDrifts += $json
+            }
         } catch {
             Write-Warning "⚠ Could not parse $file"
         }
     }
 }
 
-# Build Teams card payload
-$card = @{
-    title = "Cloud Drift Report"
-    text = ($allDrifts | ConvertTo-Json -Depth 5)
+if (-not $allDrifts -or $allDrifts.Count -eq 0) {
+    $allDrifts = @(@{ message = "No drifts detected" })
 }
 
-Invoke-RestMethod -Uri $env:TEAMS_WEBHOOK -Method Post -Body ($card | ConvertTo-Json) -ContentType 'application/json'
-Write-Host "✅ Teams notification sent."
+# Build proper Teams MessageCard payload
+$card = @{
+    "@type"    = "MessageCard"
+    "@context" = "https://schema.org/extensions"
+    "summary"  = "Cloud Drift Report"
+    "themeColor" = "0076D7"
+    "title"    = "☁️ Cloud Drift Report"
+    "text"     = ($allDrifts | ConvertTo-Json -Depth 5 -Compress)
+}
+
+Invoke-RestMethod -Uri $env:TEAMS_WEBHOOK -Method Post -Body ($card | ConvertTo-Json -Depth 5) -ContentType 'application/json'
+
+Write-Host "✅ Teams notification sent with drift values."
