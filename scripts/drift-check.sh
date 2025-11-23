@@ -1,5 +1,5 @@
 #!/bin/bash
-set -uo pipefail       # -u to catch unset variables, -o pipefail for safer pipes
+set -uo pipefail
 
 CLOUD=${1:-}
 if [[ -z "$CLOUD" ]]; then
@@ -8,15 +8,11 @@ if [[ -z "$CLOUD" ]]; then
 fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# ------------------------------
-# FIX: Unified path for all clouds
-# ------------------------------
 LOGDIR="${REPO_ROOT}/data/${CLOUD}"
 mkdir -p "$LOGDIR"
-mkdir -p "$REPO_ROOT/data/ai"  # ensure AI feature folder exists
+mkdir -p "$REPO_ROOT/data"
 
 echo "📁 Ensuring log directory exists at: $LOGDIR"
-ls -ld "$LOGDIR" || echo "⚠️ Could not verify directory; continuing..."
 
 echo "🌐 Starting drift detection for: $CLOUD"
 
@@ -31,7 +27,7 @@ if [[ "$CLOUD" == "azure" ]]; then
   export ARM_USE_OIDC="${ARM_USE_OIDC:-true}"
 
 elif [[ "$CLOUD" == "aws" ]]; then
-  echo "🔹 Using AWS OIDC credentials (from GitHub Actions)..."
+  echo "🔹 Using AWS OIDC credentials..."
   : "${AWS_REGION:?Missing AWS_REGION}"
 else
   echo "❌ Unsupported cloud: $CLOUD"
@@ -51,39 +47,25 @@ terraform plan -refresh=true -out=tfplan.auto -input=false || {
   echo "⚠️ Terraform plan failed"; exit 1;
 }
 
-# =========================
-# Convert plan to JSON (BEFORE remediation)
-# =========================
 echo "🔹 Converting plan to JSON..."
 terraform show -json tfplan.auto > tfplan.json
-
-echo "🔹 Extracting resource_changes BEFORE remediation..."
 jq '.resource_changes' tfplan.json > "$LOGDIR/terraform-drift.json"
 echo "📄 Drift JSON saved to: $LOGDIR/terraform-drift.json"
 
 resource_count=$(jq 'length' "$LOGDIR/terraform-drift.json" || echo 0)
-resource_count=${resource_count:-0}
 
 # =========================
 # Run Conftest
 # =========================
 echo "🔎 Running Conftest policy validation..."
 set +e
-conftest_output=$(conftest test "$REPO_ROOT/$CLOUD/tfplan.json" \
-  --policy "$REPO_ROOT/policy" --all-namespaces 2>&1)
+conftest_output=$(conftest test tfplan.json --policy "$REPO_ROOT/policy" --all-namespaces 2>&1)
 set -u
 
 echo "$conftest_output" | tee "$LOGDIR/conftest_output.log"
-
 fail_count=$(echo "$conftest_output" | grep -cE "FAIL|❌" || echo 0)
 warn_count=$(echo "$conftest_output" | grep -cE "WARN|⚠️" || echo 0)
 
-fail_count=${fail_count:-0}
-warn_count=${warn_count:-0}
-
-# --------------------------
-# STRICT FIX FOR TEAMS JSON
-# --------------------------
 raw_failed=$(echo "$conftest_output" | grep -E "FAIL|❌" | awk -F'- ' '{print $NF}' || true)
 if [[ -z "$raw_failed" ]]; then
     failed_resources="[]"
@@ -97,15 +79,9 @@ timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 # AI FEATURE EXTRACTION & RISK INFERENCE
 # =========================
 echo "🤖 Running AI-based drift risk classification..."
-mkdir -p "$REPO_ROOT/data"  # ensure parent folder exists
-python "$REPO_ROOT/scripts/extract_drift_features.py" "$LOGDIR/terraform-drift.json" || \
-  echo "⚠️ AI feature extraction fallback."
-
-python "$REPO_ROOT/scripts/train_drift_model.py" || \
-  echo "⚠️ AI model training skipped."
-
-python "$REPO_ROOT/scripts/infer_drift_risk.py" || \
-  echo "⚠️ AI inference could not run."
+python "$REPO_ROOT/scripts/extract_drift_features.py" "$LOGDIR/terraform-drift.json" || echo "⚠️ AI feature extraction fallback."
+python "$REPO_ROOT/scripts/train_drift_model.py" || echo "⚠️ AI model training skipped."
+python "$REPO_ROOT/scripts/infer_drift_risk.py" || echo "⚠️ AI inference fallback."
 
 # =========================
 # Decide Remediation
@@ -114,16 +90,13 @@ if [[ $fail_count -gt 0 ]]; then
     drift_type="unsafe"
     severity="high"
     action="terraform apply"
-
     echo "🚨 Unsafe drift detected → auto-remediation..."
     terraform apply -auto-approve tfplan.auto
-
 elif [[ $warn_count -gt 0 ]]; then
     drift_type="safe"
     severity="low"
     action="none"
-    echo "⚠️ Safe drift detected (no remediation)."
-
+    echo "⚠️ Safe drift detected."
 else
     drift_type="none"
     severity="none"
@@ -170,7 +143,7 @@ if [[ "$CLOUD" == "azure" ]]; then
   echo "🔹 Clearing Azure session..."
   az account clear || true
 elif [[ "$CLOUD" == "aws" ]]; then
-  echo "🔹 AWS OIDC session handled automatically — no cleanup needed."
+  echo "🔹 AWS OIDC session handled automatically."
 fi
 
 echo "✅ Drift detection completed for $CLOUD. Logs stored in $LOGDIR"
