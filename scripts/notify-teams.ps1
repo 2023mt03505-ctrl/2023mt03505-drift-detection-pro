@@ -1,125 +1,113 @@
-# Minimal Teams Adaptive Card Notification (Azure + AWS + AI)
+# ===============================
+# FINAL FIXED TEAMS NOTIFICATION
+# AUTO-DETECTS PATHS BASED ON YOUR WORKSPACE TREE
+# ===============================
 
 $webhook = $env:TEAMS_WEBHOOK_URL
 
-function Read-JsonIfExists($path) {
-    if (Test-Path $path) {
-        try {
-            return Get-Content $path -Raw | ConvertFrom-Json
-        } catch {
-            Write-Host "WARN: Failed to parse JSON at $path"
-        }
+function Find-JsonFile($cloud) {
+    $candidates = @(
+        "data/$cloud/drift_results.json",      # artifacts download location
+        "$cloud/data/drift_results.json"       # fallback (if ever created by drift-check.sh)
+    )
+    foreach ($p in $candidates) {
+        if (Test-Path $p) { return $p }
     }
     return $null
 }
 
-# -------------------------------------------------------------------
-# ✔ ONLY FIXED PATHS (MATCHES YOUR drift-check.sh EXACTLY)
-# -------------------------------------------------------------------
-$azure  = Read-JsonIfExists "azure/data/drift_results.json"
-$aws    = Read-JsonIfExists "aws/data/drift_results.json"
-$aiRisk = Read-JsonIfExists "data/ai/ai_risk.json"   # FIXED
-
-###############################################################################
-# 🔵 STRICT JSON VALIDATOR (ZERO LOGIC CHANGES)
-###############################################################################
-function Validate-Json($obj, $name) {
-    if ($null -eq $obj) {
-        Write-Host "WARN: $name JSON missing or unreadable — using safe defaults."
-        return
+function Read-JsonSafe($cloud) {
+    $path = Find-JsonFile $cloud
+    if (-not $path) {
+        Write-Host "WARN: No JSON found for $cloud — using defaults."
+        return $null
     }
 
-    $required = @(
-        "drift_type", "fail_count", "warn_count",
-        "severity", "resource_count", "action"
-    )
-
-    foreach ($f in $required) {
-        if (-not $obj.PSObject.Properties.Name.Contains($f)) {
-            Write-Host "WARN: $name JSON missing field '$f' — forcing default."
-            $obj | Add-Member -NotePropertyName $f -NotePropertyValue $null -Force
-        }
+    try {
+        return Get-Content $path -Raw | ConvertFrom-Json
+    } catch {
+        Write-Host "WARN: Failed to parse JSON for $cloud at $path"
+        return $null
     }
 }
 
-Validate-Json $azure "Azure"
-Validate-Json $aws   "AWS"
-Validate-Json $aiRisk "AI"
-###############################################################################
+# -------------------------
+# Read JSON (auto-detected paths)
+# -------------------------
+$azure = Read-JsonSafe "azure"
+$aws   = Read-JsonSafe "aws"
+$aiRisk = Read-JsonSafe "ai"   # optional
 
-# --- Default safe values ----
-$az = @{
-    drift_type = $azure?.drift_type ?? "none"
-    fail_count = $azure?.fail_count ?? 0
-    warn_count = $azure?.warn_count ?? 0
-    severity   = $azure?.severity ?? "none"
+# -------------------------
+# Safe defaults
+# -------------------------
+function Safe($obj) {
+    return @{
+        drift_type    = $obj?.drift_type    ?? "none"
+        fail_count    = $obj?.fail_count    ?? 0
+        warn_count    = $obj?.warn_count    ?? 0
+        severity      = $obj?.severity      ?? "none"
+        resource_count = $obj?.resource_count ?? 0
+        action        = $obj?.action        ?? "none"
+    }
 }
 
-$aw = @{
-    drift_type = $aws?.drift_type ?? "none"
-    fail_count = $aws?.fail_count ?? 0
-    warn_count = $aws?.warn_count ?? 0
-    severity   = $aws?.severity ?? "none"
-}
+$az = Safe $azure
+$aw = Safe $aws
+$ai = Safe $aiRisk
 
-$ai = @{
-    drift_type = $aiRisk?.drift_type ?? "none"
-    fail_count = $aiRisk?.fail_count ?? 0
-    warn_count = $aiRisk?.warn_count ?? 0
-    severity   = $aiRisk?.severity ?? "none"
-}
-
-# ---------- Summary -------------
+# -------------------------
+# Severity Logic
+# -------------------------
 $totalFails = $az.fail_count + $aw.fail_count + $ai.fail_count
 $totalWarn  = $az.warn_count + $aw.warn_count + $ai.warn_count
 
-if ($totalFails -gt 0) {
-    $severity = "❌ UNSAFE"
-}
-elseif ($totalWarn -gt 0) {
-    $severity = "⚠ SAFE"
-}
-else {
-    $severity = "✅ CLEAN (No drift)"
-}
+if ($totalFails -gt 0) { $severity = "❌ UNSAFE DRIFT" }
+elseif ($totalWarn -gt 0) { $severity = "⚠ SAFE DRIFT" }
+else { $severity = "✅ CLEAN — No Drift" }
 
+# -------------------------
+# GitHub Run Link
+# -------------------------
 $runUrl = "https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
 
-# ---------- Teams Adaptive Card ----------
+# -------------------------
+# Adaptive Card
+# -------------------------
 $card = @{
     "`$schema" = "http://adaptivecards.io/schemas/adaptive-card.json"
-    type = "AdaptiveCard"
-    version = "1.4"
-    body = @(
+    type       = "AdaptiveCard"
+    version    = "1.4"
+    body       = @(
         @{
-            type="TextBlock"
-            size="Large"
-            weight="Bolder"
+            type="TextBlock"; size="Large"; weight="Bolder";
             text="🌐 Multi-Cloud Drift Summary"
         },
         @{
-            type="TextBlock"
+            type="TextBlock"; wrap=$true;
             text="**Overall Status:** $severity"
-            wrap=$true
         },
         @{
             type="FactSet"
-            facts=@(
+            facts = @(
                 @{ title="Azure:"; value="Type: $($az.drift_type), Fails: $($az.fail_count), Warns: $($az.warn_count)" }
-                @{ title="AWS:";   value="Type: $($aw.drift_type), Fails: $($aw.fail_count), Warns: $($aw.warn_count)" }
-                @{ title="AI Risk:"; value="Type: $($ai.drift_type), Severity: $($ai.severity)" }
+                @{ title="AWS:"; value="Type: $($aw.drift_type), Fails: $($aw.fail_count), Warns: $($aw.warn_count)" }
+                @{ title="AI Risk:"; value="Severity: $($ai.severity)" }
             )
         }
     )
-    actions=@(
+    actions = @(
         @{
             type="Action.OpenUrl"
-            title="🔍 View Run Logs / Artifacts"
+            title="🔍 View Logs / Artifacts"
             url=$runUrl
         }
     )
 }
 
+# -------------------------
+# Send to Teams
+# -------------------------
 $payload = @{
     type="message"
     attachments = @(
@@ -130,5 +118,6 @@ $payload = @{
     )
 } | ConvertTo-Json -Depth 10
 
-Invoke-RestMethod -Method Post -Uri $webhook -Body $payload -ContentType "application/json"
-Write-Host "Teams notification sent."
+Invoke-RestMethod -Uri $webhook -Method POST -Body $payload -ContentType "application/json"
+
+Write-Host "Teams notification sent successfully."
