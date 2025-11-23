@@ -60,11 +60,6 @@ echo "📄 Drift JSON saved to: $LOGDIR/terraform-drift.json"
 
 resource_count=$(jq 'length' "$LOGDIR/terraform-drift.json")
 
-# STRICT FIX: Prevent empty numeric fields from breaking JSON
-resource_count=${resource_count:-0}
-fail_count=${fail_count:-0}
-warn_count=${warn_count:-0}
-
 # =========================
 # Run Conftest
 # =========================
@@ -80,18 +75,21 @@ fail_count=$(echo "$conftest_output" | grep -cE "FAIL|❌" || echo 0)
 warn_count=$(echo "$conftest_output" | grep -cE "WARN|⚠️" || echo 0)
 
 # --------------------------
-# MINIMAL FIX FOR TEAMS JSON
+# STRICT FIX FOR TEAMS JSON
 # --------------------------
-# Extract raw failures (may be empty)
 raw_failed=$(echo "$conftest_output" | grep -E "FAIL|❌" || true | awk '{print $2}')
 
-# Convert to valid JSON array ALWAYS
 if [[ -z "$raw_failed" ]]; then
     failed_resources="[]"
 else
     failed_resources=$(echo "$raw_failed" | jq -R -s -c 'split("\n")[:-1]')
 fi
 # --------------------------
+
+# STRICT FIX — assign numeric defaults **after real values**
+resource_count=${resource_count:-0}
+fail_count=${fail_count:-0}
+warn_count=${warn_count:-0}
 
 timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
