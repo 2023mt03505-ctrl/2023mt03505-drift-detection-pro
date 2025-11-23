@@ -130,3 +130,9 @@ $payload = @{
 
 Invoke-RestMethod -Method Post -Uri $webhook -Body $payload -ContentType "application/json"
 Write-Host "Teams notification sent."
+
+- name: DEBUG — Show directory structure before Teams notify
+  run: |
+    echo "=== WORKSPACE TREE ==="
+    pwd
+    ls -R .
