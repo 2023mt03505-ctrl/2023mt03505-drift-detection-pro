@@ -2,19 +2,35 @@
 # AUTO-DETECT JSON PATHS – FINAL FIX
 # ===============================
 
+# -------------------------
+# ENSURE PARENT FOLDERS EXIST
+# -------------------------
+if (-not (Test-Path "data/azure")) { New-Item -ItemType Directory -Path "data/azure" | Out-Null }
+if (-not (Test-Path "data/aws"))   { New-Item -ItemType Directory -Path "data/aws"   | Out-Null }
+if (-not (Test-Path "data/ai"))    { New-Item -ItemType Directory -Path "data/ai"    | Out-Null }
+
+# -------------------------
+# CREATE EMPTY JSON FILES IF MISSING
+# -------------------------
+$azureFile = "data/azure/drift_results.json"
+if (-not (Test-Path $azureFile)) { '{}' | Set-Content $azureFile }
+
+$awsFile   = "data/aws/drift_results.json"
+if (-not (Test-Path $awsFile))   { '{}' | Set-Content $awsFile }
+
+$aiFile    = "data/ai/drift_results.json"
+if (-not (Test-Path $aiFile))    { '{}' | Set-Content $aiFile }
+
+# -------------------------
+# TEAMS WEBHOOK
+# -------------------------
 $webhook = $env:TEAMS_WEBHOOK_URL
 
 # STRICT FINAL JSON DETECTOR (only valid artifact JSON)
 function Find-JsonFile {
     param($cloud)
-
-    # FINAL: only use artifacts under data/<cloud>/drift_results.json
     $preferred = "data/$cloud/drift_results.json"
-
-    if (Test-Path $preferred) {
-        return $preferred
-    }
-
+    if (Test-Path $preferred) { return $preferred }
     Write-Host "WARN: No JSON found for $cloud"
     return $null
 }
@@ -22,29 +38,12 @@ function Find-JsonFile {
 function Read-JsonSafe($cloud) {
     $path = Find-JsonFile $cloud
     if (-not $path) { return $null }
-
     try { return Get-Content $path -Raw | ConvertFrom-Json }
     catch {
         Write-Host "WARN: Failed to parse JSON for $cloud at $path"
         return $null
     }
 }
-
-
-
-# -------------------------
-# CREATE EMPTY JSON FILES IF MISSING
-# -------------------------
-
-$azureFile = "data/azure/drift_results.json"
-if (-not (Test-Path $azureFile)) { New-Item -ItemType File -Path $azureFile | Out-Null; '{}' | Set-Content $azureFile }
-
-$awsFile   = "data/aws/drift_results.json"
-if (-not (Test-Path $awsFile))   { New-Item -ItemType File -Path $awsFile   | Out-Null; '{}' | Set-Content $awsFile }
-
-$aiFile    = "data/ai/drift_results.json"
-if (-not (Test-Path $aiFile))    { New-Item -ItemType File -Path $aiFile    | Out-Null; '{}' | Set-Content $aiFile }
-
 
 # -------------------------
 # Read JSON safely
