@@ -14,9 +14,9 @@ function Read-JsonIfExists($path) {
 }
 
 # FIXED PATHS (ONLY CHANGE REQUESTED)
-$azure = Read-JsonIfExists "azure/drift_results.json"
-$aws   = Read-JsonIfExists "aws/drift_results.json"
-$aiRisk = Read-JsonIfExists "ai/drift_results.json"
+$azure = Read-JsonIfExists "azure/data/drift_results.json"
+$aws   = Read-JsonIfExists "aws/data/drift_results.json"
+$aiRisk = Read-JsonIfExists "data/aws/drift_results.json"
 
 ###############################################################################
 # 🔵 STRICT JSON VALIDATOR (ZERO LOGIC CHANGE — ONLY PATHS FIXED)
@@ -130,5 +130,3 @@ $payload = @{
 
 Invoke-RestMethod -Method Post -Uri $webhook -Body $payload -ContentType "application/json"
 Write-Host "Teams notification sent."
-
-
