@@ -13,7 +13,7 @@ foreach ($c in $clouds) {
     if (Test-Path $file) {
         try {
             $json = Get-Content -Raw $file | ConvertFrom-Json
-            if ($json -and $json.Count -gt 0) { $allDrifts += $json }
+            if ($json) { $allDrifts += $json }
         } catch {
             Write-Warning "⚠ Could not parse $file. $_"
         }
@@ -22,7 +22,7 @@ foreach ($c in $clouds) {
     }
 }
 
-# If no drifts found, create default message
+# Default message if no drift
 if (-not $allDrifts -or $allDrifts.Count -eq 0) {
     $allDrifts = @(@{ 
         cloud="none"; 
@@ -36,35 +36,30 @@ if (-not $allDrifts -or $allDrifts.Count -eq 0) {
     })
 }
 
-# Build summary
-$summaryLines = @()
+# Build a summary array
+$summaryObjects = @()
 foreach ($d in $allDrifts) {
-    $summaryLines += @"
-☁️ Cloud: $($d.cloud)
-Drift Type: $($d.drift_type)
-Severity: $($d.severity)
-Action: $($d.action)
-Resources: $($d.resource_count) | Fail: $($d.fail_count) | Warn: $($d.warn_count)
----
-"@
+    $summaryObjects += [PSCustomObject]@{
+        cloud = $d.cloud
+        drift_type = $d.drift_type
+        severity = $d.severity
+        action = $d.action
+        resources = $d.resource_count
+        fail = $d.fail_count
+        warn = $d.warn_count
+    }
 }
 
-$summaryText = $summaryLines -join "`n"
+# Prepare payload for Power Automate
+$payload = @{
+    summary = "Cloud Drift Report"
+    drifts = $summaryObjects
+} | ConvertTo-Json -Depth 10
 
-# Construct Teams MessageCard payload
-$card = @{
-    "@type"    = "MessageCard"
-    "@context" = "https://schema.org/extensions"
-    "summary"  = "Cloud Drift Report"
-    "themeColor" = "0076D7"
-    "title"    = "☁️ Cloud Drift Report"
-    "text"     = $summaryText
-}
-
-# Send the notification (always tries, even if empty)
+# Send to Power Automate flow
 try {
-    Invoke-RestMethod -Uri $env:TEAMS_WEBHOOK_URL -Method Post -Body ($card | ConvertTo-Json -Depth 10 -Compress) -ContentType 'application/json'
-    Write-Host "✅ Teams notification sent successfully."
+    Invoke-RestMethod -Uri $env:TEAMS_WEBHOOK_URL -Method Post -Body $payload -ContentType 'application/json'
+    Write-Host "✅ Drift summary sent to Power Automate successfully."
 } catch {
-    Write-Host "❌ Failed to send Teams notification: $_"
+    Write-Host "❌ Failed to send to Power Automate: $_"
 }

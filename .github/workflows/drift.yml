@@ -175,41 +175,50 @@ jobs:
       - name: Predict Drift Risk
         run: python scripts/infer_drift_risk.py
 
-    ############################################
+  ############################################
   # 📩 TEAMS NOTIFICATION (Azure + AWS + AI)
   ############################################
   notify-all:
-    name: Send Combined Teams Notification
-    runs-on: ubuntu-latest
-    needs: [ai-drift]
-    if: always()
+  name: Send Combined Teams Notification
+  runs-on: ubuntu-latest
+  needs: [ai-drift]
+  if: always()
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Download Azure drift logs
-        uses: actions/download-artifact@v4
-        with:
-          name: drift-logs-azure
-          path: data/azure
-        continue-on-error: true
+    - name: Download Azure drift logs
+      uses: actions/download-artifact@v4
+      with:
+        name: drift-logs-azure
+        path: data/azure
+      continue-on-error: true
 
-      - name: Download AWS drift logs
-        uses: actions/download-artifact@v4
-        with:
-          name: drift-logs-aws
-          path: data/aws
-        continue-on-error: true
+    - name: Download AWS drift logs
+      uses: actions/download-artifact@v4
+      with:
+        name: drift-logs-aws
+        path: data/aws
+      continue-on-error: true
 
-      - name: DEBUG — Show directory structure
-        run: |
-          echo "=== WORKSPACE TREE ==="
-          pwd
-          ls -R .
+    - name: DEBUG — Show directory structure
+      run: |
+        echo "=== WORKSPACE TREE ==="
+        pwd
+        ls -R .
 
-      - name: Send Teams Adaptive Card
-        shell: pwsh
-        env:
-          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
-        run: ./scripts/notify-teams.ps1
+    - name: Send Teams Adaptive Card via PowerShell
+      shell: pwsh
+      env:
+        TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+      run: |
+        # Ensure script is executable
+        if (-Not (Test-Path ./scripts/notify-teams.ps1)) {
+          Write-Host "❌ notify-teams.ps1 not found!"
+          exit 1
+        }
+
+        # Run the script
+        Write-Host "✅ Running notify-teams.ps1"
+        ./scripts/notify-teams.ps1
