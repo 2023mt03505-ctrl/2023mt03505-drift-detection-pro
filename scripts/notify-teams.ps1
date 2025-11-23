@@ -12,23 +12,41 @@ foreach ($c in $clouds) {
     $file = "data/$c/drift_results.json"
     if (Test-Path $file) {
         try {
-            $json = Get-Content $file | ConvertFrom-Json
+            $json = Get-Content -Raw $file | ConvertFrom-Json
             if ($json) { $allDrifts += $json }
         } catch {
-            Write-Warning "⚠ Could not parse $file"
+            Write-Warning "⚠ Could not parse $file. $_"
         }
+    } else {
+        Write-Warning "⚠ File not found: $file"
     }
 }
 
 # Default message if no drift
 if (-not $allDrifts -or $allDrifts.Count -eq 0) {
-    $allDrifts = @(@{ cloud="none"; drift_type="none"; message="No drifts detected"; severity="none"; action="none" })
+    $allDrifts = @(@{ 
+        cloud="none"; 
+        drift_type="none"; 
+        message="No drifts detected"; 
+        severity="none"; 
+        action="none"; 
+        resource_count=0; 
+        fail_count=0; 
+        warn_count=0 
+    })
 }
 
-# Build a readable summary
+# Build a readable summary with proper formatting
 $summaryLines = @()
 foreach ($d in $allDrifts) {
-    $summaryLines += "☁️ Cloud: $($d.cloud)`nDrift Type: $($d.drift_type)`nSeverity: $($d.severity)`nAction: $($d.action)`nResources: $($d.resource_count) | Fail: $($d.fail_count) | Warn: $($d.warn_count)`n---"
+    $summaryLines += @"
+☁️ Cloud: $($d.cloud)
+Drift Type: $($d.drift_type)
+Severity: $($d.severity)
+Action: $($d.action)
+Resources: $($d.resource_count) | Fail: $($d.fail_count) | Warn: $($d.warn_count)
+---
+"@
 }
 
 $summaryText = $summaryLines -join "`n"
@@ -45,7 +63,7 @@ $card = @{
 
 # Send the notification
 try {
-    Invoke-RestMethod -Uri $env:TEAMS_WEBHOOK_URL -Method Post -Body ($card | ConvertTo-Json -Depth 10) -ContentType 'application/json'
+    Invoke-RestMethod -Uri $env:TEAMS_WEBHOOK_URL -Method Post -Body ($card | ConvertTo-Json -Depth 10 -Compress) -ContentType 'application/json'
     Write-Host "✅ Teams notification sent successfully."
 } catch {
     Write-Host "❌ Failed to send Teams notification: $_"
