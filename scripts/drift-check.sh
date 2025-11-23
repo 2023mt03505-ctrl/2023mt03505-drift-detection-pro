@@ -77,12 +77,13 @@ warn_count=$(echo "$conftest_output" | grep -cE "WARN|⚠️" || echo 0)
 # --------------------------
 # STRICT FIX FOR TEAMS JSON
 # --------------------------
-# Extract only resource names from conftest
+# Extract only resource names from conftest output (robust attempt)
 raw_failed=$(echo "$conftest_output" | grep -E "FAIL|❌" | awk -F'- ' '{print $NF}' || true)
 
 if [[ -z "$raw_failed" ]]; then
     failed_resources="[]"
 else
+    # convert newline-separated raw names into a JSON array string
     failed_resources=$(echo "$raw_failed" | jq -R -s -c 'split("\n")[:-1]')
 fi
 # --------------------------
@@ -133,21 +134,33 @@ else
 fi
 
 # =========================
-# Save unified JSON 
+# Save unified JSON (SAFE via jq)
 # =========================
-cat <<EOF > "$LOGDIR/drift_results.json"
-{
-  "timestamp": "$timestamp",
-  "cloud": "$CLOUD",
-  "drift_type": "$drift_type",
-  "severity": "$severity",
-  "action": "$action",
-  "resource_count": $resource_count,
-  "fail_count": $fail_count,
-  "warn_count": $warn_count,
-  "failed_resources": $failed_resources
-}
-EOF
+# Ensure failed_resources is valid JSON array string (we created it above).
+# Use jq to build JSON safely so PowerShell ConvertFrom-Json will always work.
+jq -n \
+  --arg timestamp "$timestamp" \
+  --arg cloud "$CLOUD" \
+  --arg drift_type "$drift_type" \
+  --arg severity "$severity" \
+  --arg action "$action" \
+  --argjson resource_count "$resource_count" \
+  --argjson fail_count "$fail_count" \
+  --argjson warn_count "$warn_count" \
+  --argjson failed_resources "$failed_resources" \
+  '{
+    timestamp: $timestamp,
+    cloud: $cloud,
+    drift_type: $drift_type,
+    severity: $severity,
+    action: $action,
+    resource_count: $resource_count,
+    fail_count: $fail_count,
+    warn_count: $warn_count,
+    failed_resources: $failed_resources
+  }' > "$LOGDIR/drift_results.json"
+
+echo "📄 Drift results saved to: $LOGDIR/drift_results.json"
 
 # =========================
 # Save drift history

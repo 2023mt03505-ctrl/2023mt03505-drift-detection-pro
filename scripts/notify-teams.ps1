@@ -8,6 +8,7 @@ $webhook = $env:TEAMS_WEBHOOK_URL
 function Find-JsonFile {
     param($cloud)
 
+    # FINAL: only use artifacts under data/<cloud>/drift_results.json
     $preferred = "data/$cloud/drift_results.json"
 
     if (Test-Path $preferred) {
@@ -86,11 +87,11 @@ $card = @{
                 @{
                     title="Azure:"
                     value="Type: $($az.drift_type), Fails: $($az.fail_count), Warns: $($az.warn_count)"
-                }
+                },
                 @{
                     title="AWS:"
                     value="Type: $($aw.drift_type), Fails: $($aw.fail_count), Warns: $($aw.warn_count)"
-                }
+                },
                 @{
                     title="AI Risk:"
                     value="Severity: $($ai.severity)"
