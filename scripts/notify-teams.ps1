@@ -1,10 +1,10 @@
-# ❌ Exit early if webhook secret is missing
+# Exit early if webhook secret is missing
 if (-not $env:TEAMS_WEBHOOK_URL) {
     Write-Host "❌ TEAMS_WEBHOOK_URL not set. Skipping notification."
     exit 0
 }
 
-# List of clouds to check
+# List of clouds
 $clouds = @("azure","aws")
 $allDrifts = @()
 
@@ -22,10 +22,15 @@ foreach ($c in $clouds) {
     }
 }
 
-# Handle case when no drift data exists
+# Handle empty drift
 if (-not $allDrifts -or $allDrifts.Count -eq 0) {
     $allDrifts = @(@{ message = "No drifts detected" })
 }
+
+# Build human-readable text for Teams
+$text = $allDrifts | ForEach-Object {
+    $_ | ConvertTo-Json -Depth 5 -Compress
+} -join "`n`n"
 
 # Build Teams MessageCard payload
 $card = @{
@@ -34,7 +39,7 @@ $card = @{
     "summary"  = "Cloud Drift Report"
     "themeColor" = "0076D7"
     "title"    = "☁️ Cloud Drift Report"
-    "text"     = ($allDrifts | ConvertTo-Json -Depth 5 -Compress)
+    "text"     = $text
 }
 
 # Send the Teams notification
