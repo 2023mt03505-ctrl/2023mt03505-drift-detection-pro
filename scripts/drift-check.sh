@@ -1,5 +1,5 @@
 #!/bin/bash
-set -uo pipefail       # FIX 1: removed -e
+set -uo pipefail       # -u to catch unset variables, -o pipefail for safer pipes
 
 CLOUD=${1:-}
 if [[ -z "$CLOUD" ]]; then
@@ -13,6 +13,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # ------------------------------
 LOGDIR="${REPO_ROOT}/data/${CLOUD}"
 mkdir -p "$LOGDIR"
+mkdir -p "$REPO_ROOT/data/ai"  # ensure AI feature folder exists
 
 echo "📁 Ensuring log directory exists at: $LOGDIR"
 ls -ld "$LOGDIR" || echo "⚠️ Could not verify directory; continuing..."
@@ -60,7 +61,8 @@ echo "🔹 Extracting resource_changes BEFORE remediation..."
 jq '.resource_changes' tfplan.json > "$LOGDIR/terraform-drift.json"
 echo "📄 Drift JSON saved to: $LOGDIR/terraform-drift.json"
 
-resource_count=$(jq 'length' "$LOGDIR/terraform-drift.json")
+resource_count=$(jq 'length' "$LOGDIR/terraform-drift.json" || echo 0)
+resource_count=${resource_count:-0}
 
 # =========================
 # Run Conftest
@@ -76,21 +78,18 @@ echo "$conftest_output" | tee "$LOGDIR/conftest_output.log"
 fail_count=$(echo "$conftest_output" | grep -cE "FAIL|❌" || echo 0)
 warn_count=$(echo "$conftest_output" | grep -cE "WARN|⚠️" || echo 0)
 
+fail_count=${fail_count:-0}
+warn_count=${warn_count:-0}
+
 # --------------------------
 # STRICT FIX FOR TEAMS JSON
 # --------------------------
 raw_failed=$(echo "$conftest_output" | grep -E "FAIL|❌" | awk -F'- ' '{print $NF}' || true)
-
 if [[ -z "$raw_failed" ]]; then
     failed_resources="[]"
 else
     failed_resources=$(echo "$raw_failed" | jq -R -s -c 'split("\n")[:-1]')
 fi
-# --------------------------
-
-resource_count=${resource_count:-0}
-fail_count=${fail_count:-0}
-warn_count=${warn_count:-0}
 
 timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -98,6 +97,7 @@ timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 # AI FEATURE EXTRACTION & RISK INFERENCE
 # =========================
 echo "🤖 Running AI-based drift risk classification..."
+mkdir -p "$REPO_ROOT/data"  # ensure parent folder exists
 python "$REPO_ROOT/scripts/extract_drift_features.py" "$LOGDIR/terraform-drift.json" || \
   echo "⚠️ AI feature extraction fallback."
 
