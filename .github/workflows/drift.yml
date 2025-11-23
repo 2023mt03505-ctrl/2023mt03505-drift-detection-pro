@@ -255,6 +255,12 @@ jobs:
           path: data
         continue-on-error: true
 
+      - name: DEBUG — Show directory structure before Teams notify
+        run: |
+          echo "=== WORKSPACE TREE ==="
+          pwd
+          ls -R .
+
       - name: Send Teams Adaptive Card
         shell: pwsh
         env:
