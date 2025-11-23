@@ -1,10 +1,9 @@
-# Exit early if webhook secret is missing
+# Exit if webhook is missing
 if (-not $env:TEAMS_WEBHOOK_URL) {
     Write-Host "❌ TEAMS_WEBHOOK_URL not set. Skipping notification."
     exit 0
 }
 
-# List of clouds
 $clouds = @("azure","aws")
 $allDrifts = @()
 
@@ -13,37 +12,33 @@ foreach ($c in $clouds) {
     if (Test-Path $file) {
         try {
             $json = Get-Content $file | ConvertFrom-Json
-            if ($json -ne $null -and $json.Count -gt 0) {
-                $allDrifts += $json
-            }
-        } catch {
-            Write-Warning "⚠ Could not parse $file"
-        }
+            if ($json -ne $null) { $allDrifts += $json }
+        } catch { Write-Warning "⚠ Could not parse $file" }
     }
 }
 
-# Handle empty drift
+# Default if empty
 if (-not $allDrifts -or $allDrifts.Count -eq 0) {
-    $allDrifts = @(@{ cloud = "none"; drift_type = "none"; message = "No drifts detected" })
+    $allDrifts = @(@{ cloud="none"; drift_type="none"; message="No drifts detected"; severity="none"; action="none" })
 }
 
-# Build human-readable summary text
-$text = ""
+# Build readable summary
+$textLines = @()
 foreach ($d in $allDrifts) {
     $cloud = $d.cloud
     $type  = $d.drift_type
     $severity = $d.severity
     $action   = $d.action
-    $resource_count = $d.resource_count
-    $fail_count     = $d.fail_count
-    $warn_count     = $d.warn_count
+    $resources = if ($d.resource_count) { $d.resource_count } else { 0 }
+    $fails     = if ($d.fail_count) { $d.fail_count } else { 0 }
+    $warns     = if ($d.warn_count) { $d.warn_count } else { 0 }
 
-    $text += "☁️ **Cloud:** $cloud`n"
-    $text += "Drift Type: $type`nSeverity: $severity`nAction: $action`n"
-    $text += "Resources: $resource_count | Fail: $fail_count | Warn: $warn_count`n`n"
+    $textLines += "Cloud: $cloud`nType: $type`nSeverity: $severity`nAction: $action`nResources: $resources | Fail: $fails | Warn: $warns`n"
 }
 
-# Build Teams MessageCard payload
+$text = $textLines -join "`n---`n"
+
+# Minimal valid MessageCard
 $card = @{
     "@type"    = "MessageCard"
     "@context" = "https://schema.org/extensions"
@@ -53,9 +48,8 @@ $card = @{
     "text"     = $text
 }
 
-# Send the Teams notification
 try {
-    Invoke-RestMethod -Uri $env:TEAMS_WEBHOOK_URL -Method Post -Body ($card | ConvertTo-Json -Depth 5) -ContentType 'application/json'
+    Invoke-RestMethod -Uri $env:TEAMS_WEBHOOK_URL -Method Post -Body ($card | ConvertTo-Json -Depth 10) -ContentType 'application/json'
     Write-Host "✅ Teams notification sent successfully."
 } catch {
     Write-Host "❌ Failed to send Teams notification: $_"
