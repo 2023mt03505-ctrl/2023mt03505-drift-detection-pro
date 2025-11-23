@@ -77,7 +77,8 @@ warn_count=$(echo "$conftest_output" | grep -cE "WARN|⚠️" || echo 0)
 # --------------------------
 # STRICT FIX FOR TEAMS JSON
 # --------------------------
-raw_failed=$(echo "$conftest_output" | grep -E "FAIL|❌" || true | awk '{print $2}')
+# Extract only resource names from conftest
+raw_failed=$(echo "$conftest_output" | grep -E "FAIL|❌" | awk -F'- ' '{print $NF}' || true)
 
 if [[ -z "$raw_failed" ]]; then
     failed_resources="[]"
@@ -86,7 +87,7 @@ else
 fi
 # --------------------------
 
-# STRICT FIX — assign numeric defaults **after real values**
+# STRICT FIX — assign numeric defaults after real values
 resource_count=${resource_count:-0}
 fail_count=${fail_count:-0}
 warn_count=${warn_count:-0}

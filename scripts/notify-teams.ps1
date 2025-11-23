@@ -13,13 +13,15 @@ function Read-JsonIfExists($path) {
     return $null
 }
 
-# FIXED PATHS (ONLY CHANGE REQUESTED)
-$azure = Read-JsonIfExists "azure/data/drift_results.json"
-$aws   = Read-JsonIfExists "aws/data/drift_results.json"
-$aiRisk = Read-JsonIfExists "data/aws/drift_results.json"
+# -------------------------------------------------------------------
+# ✔ ONLY FIXED PATHS (MATCHES YOUR drift-check.sh EXACTLY)
+# -------------------------------------------------------------------
+$azure  = Read-JsonIfExists "azure/data/drift_results.json"
+$aws    = Read-JsonIfExists "aws/data/drift_results.json"
+$aiRisk = Read-JsonIfExists "data/ai/ai_risk.json"   # FIXED
 
 ###############################################################################
-# 🔵 STRICT JSON VALIDATOR (ZERO LOGIC CHANGE — ONLY PATHS FIXED)
+# 🔵 STRICT JSON VALIDATOR (ZERO LOGIC CHANGES)
 ###############################################################################
 function Validate-Json($obj, $name) {
     if ($null -eq $obj) {
