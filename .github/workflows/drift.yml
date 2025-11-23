@@ -213,4 +213,4 @@ jobs:
         env:
           TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
         run: |
-          pwsh scripts/teams.ps1
+          pwsh scripts/notify-teams.ps1
