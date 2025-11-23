@@ -4,17 +4,15 @@
 
 $webhook = $env:TEAMS_WEBHOOK_URL
 
+# STRICT FINAL JSON DETECTOR (only valid artifact JSON)
 function Find-JsonFile {
     param($cloud)
 
-    $candidates = @(
-        "$cloud/data/drift_results.json",
-        "data/$cloud/drift_results.json",
-        "data/drift_results.json"   # AI or fallback
-    )
+    # FINAL FIX — replaces your earlier candidates
+    $preferred = "data/$cloud/drift_results.json"
 
-    foreach ($p in $candidates) {
-        if (Test-Path $p) { return $p }
+    if (Test-Path $preferred) {
+        return $preferred
     }
 
     Write-Host "WARN: No JSON found for $cloud"
@@ -73,31 +71,4 @@ $card = @{
     version="1.4"
     body=@(
         @{ type="TextBlock"; size="Large"; weight="Bolder"; text="🌐 Multi-Cloud Drift Summary" },
-        @{ type="TextBlock"; wrap=$true; text="**Overall Status:** $overall" },
-        @{
-            type="FactSet"
-            facts=@(
-                @{ title="Azure:"; value="Type: $($az.drift_type), Fails: $($az.fail_count), Warns: $($az.warn_count)" }
-                @{ title="AWS:"; value="Type: $($aw.drift_type), Fails: $($aw.fail_count), Warns: $($aw.warn_count)" }
-                @{ title="AI Risk:"; value="Severity: $($ai.severity)" }
-            )
-        }
-    )
-    actions=@(
-        @{ type="Action.OpenUrl"; title="🔍 View Logs / Artifacts"; url=$runUrl }
-    )
-}
-
-$payload = @{
-    type="message"
-    attachments=@(
-        @{
-            contentType="application/vnd.microsoft.card.adaptive"
-            content=$card
-        }
-    )
-} | ConvertTo-Json -Depth 10
-
-Invoke-RestMethod -Uri $webhook -Method POST -Body $payload -ContentType "application/json"
-
-Write-Host "Teams notification sent OK!"
+        @{ type="TextBlock"; wrap=$t
