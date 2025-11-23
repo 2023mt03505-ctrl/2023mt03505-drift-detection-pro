@@ -28,9 +28,10 @@ if (-not $allDrifts -or $allDrifts.Count -eq 0) {
 }
 
 # Build human-readable text for Teams
-$text = $allDrifts | ForEach-Object {
+$textArray = $allDrifts | ForEach-Object {
     $_ | ConvertTo-Json -Depth 5 -Compress
-} -join "`n`n"
+}
+$text = $textArray -join "`n`n"
 
 # Build Teams MessageCard payload
 $card = @{
