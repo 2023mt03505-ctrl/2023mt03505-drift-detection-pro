@@ -16,7 +16,6 @@ jobs:
   azure-drift:
     name: Azure Drift Detection & Auto-Remediation
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -75,7 +74,6 @@ jobs:
     name: AWS Drift Detection & Auto-Remediation
     runs-on: ubuntu-latest
     needs: azure-drift
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -136,7 +134,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [azure-drift, aws-drift]
     if: always()
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -183,7 +180,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [ai-drift]
     if: always()
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -213,4 +209,9 @@ jobs:
         env:
           TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK_URL }}
         run: |
+          # ❌ Exit early if webhook is missing
+          if (-not $env:TEAMS_WEBHOOK) {
+              Write-Host "❌ TEAMS_WEBHOOK not set. Skipping notification."
+              exit 0
+          }
           pwsh scripts/notify-teams.ps1
