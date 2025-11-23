@@ -166,8 +166,8 @@ jobs:
 
       - name: Extract Drift Features
         run: |
-         python scripts/extract_drift_features.py data/azure/terraform-drift.json
-         python scripts/extract_drift_features.py data/aws/terraform-drift.json
+          python scripts/extract_drift_features.py data/azure/terraform-drift.json
+          python scripts/extract_drift_features.py data/aws/terraform-drift.json
 
       - name: Train Drift Classifier
         run: python scripts/train_drift_model.py
@@ -188,21 +188,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download Azure logs
+      - name: Download Azure drift logs
         uses: actions/download-artifact@v4
         with:
           name: drift-logs-azure
           path: data/azure
         continue-on-error: true
 
-      - name: Download AWS logs
+      - name: Download AWS drift logs
         uses: actions/download-artifact@v4
         with:
           name: drift-logs-aws
           path: data/aws
         continue-on-error: true
 
-      - name: DEBUG — Show directory structure before Teams notify
+      - name: DEBUG — Show directory structure
         run: |
           echo "=== WORKSPACE TREE ==="
           pwd
@@ -212,5 +212,4 @@ jobs:
         shell: pwsh
         env:
           TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
-        run: |
-          pwsh scripts/notify-teams.ps1
+        run: scripts/notify-teams.ps1
