@@ -77,13 +77,14 @@ warn_count=$(echo "$conftest_output" | grep -cE "WARN|⚠️" || echo 0)
 # --------------------------
 # MINIMAL FIX FOR TEAMS JSON
 # --------------------------
-failed_resources=$(echo "$conftest_output" | grep -E "FAIL|❌" || true \
-  | awk '{print $2}' \
-  | sed '/^$/d' \
-  | jq -R -s -c 'split("\n")[:-1]')
+# Extract raw failures (may be empty)
+raw_failed=$(echo "$conftest_output" | grep -E "FAIL|❌" || true | awk '{print $2}')
 
-if [[ -z "$failed_resources" || "$failed_resources" == "" ]]; then
-  failed_resources="[]"
+# Convert to valid JSON array ALWAYS
+if [[ -z "$raw_failed" ]]; then
+    failed_resources="[]"
+else
+    failed_resources=$(echo "$raw_failed" | jq -R -s -c 'split("\n")[:-1]')
 fi
 # --------------------------
 

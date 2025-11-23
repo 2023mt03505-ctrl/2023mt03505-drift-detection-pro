@@ -17,6 +17,33 @@ $azure = Read-JsonIfExists "azure/data/drift_results.json"
 $aws   = Read-JsonIfExists "aws/data/drift_results.json"
 $aiRisk = Read-JsonIfExists "data/drift_results.json"
 
+###############################################################################
+# 🔵 STRICT JSON VALIDATOR (added with ZERO changes to original logic)
+###############################################################################
+function Validate-Json($obj, $name) {
+    if ($null -eq $obj) {
+        Write-Host "WARN: $name JSON missing or unreadable — using safe defaults."
+        return
+    }
+
+    $required = @(
+        "drift_type", "fail_count", "warn_count",
+        "severity", "resource_count", "action"
+    )
+
+    foreach ($f in $required) {
+        if (-not $obj.PSObject.Properties.Name.Contains($f)) {
+            Write-Host "WARN: $name JSON missing field '$f' — forcing default."
+            $obj | Add-Member -NotePropertyName $f -NotePropertyValue $null -Force
+        }
+    }
+}
+
+Validate-Json $azure "Azure"
+Validate-Json $aws   "AWS"
+Validate-Json $aiRisk "AI"
+###############################################################################
+
 # --- Default safe values ----
 $az = @{
     drift_type = $azure?.drift_type ?? "none"
