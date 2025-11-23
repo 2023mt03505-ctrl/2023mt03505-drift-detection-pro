@@ -1,65 +1,53 @@
-# Exit early if webhook is missing
-if (-not $env:TEAMS_WEBHOOK_URL) {
-    Write-Host "❌ TEAMS_WEBHOOK_URL not set. Skipping notification."
-    exit 0
+# Ensure the webhook URL is set
+if (-Not $env:TEAMS_WEBHOOK_URL) {
+    Write-Host "❌ TEAMS_WEBHOOK_URL not set in environment variables."
+    exit 1
 }
 
-# Collect all drifts from both clouds
-$clouds = @("azure","aws")
-$allDrifts = @()
-
-foreach ($c in $clouds) {
-    $file = "data/$c/drift_results.json"
-    if (Test-Path $file) {
-        try {
-            $json = Get-Content -Raw $file | ConvertFrom-Json
-            if ($json) { $allDrifts += $json }
-        } catch {
-            Write-Warning "⚠ Could not parse $file. $_"
-        }
-    } else {
-        Write-Warning "⚠ File not found: $file"
-    }
-}
-
-# Default message if no drift
-if (-not $allDrifts -or $allDrifts.Count -eq 0) {
-    $allDrifts = @(@{ 
-        cloud="none"; 
-        drift_type="none"; 
-        message="No drifts detected"; 
-        severity="none"; 
-        action="none"; 
-        resource_count=0; 
-        fail_count=0; 
-        warn_count=0 
-    })
-}
-
-# Build a summary array
-$summaryObjects = @()
-foreach ($d in $allDrifts) {
-    $summaryObjects += [PSCustomObject]@{
-        cloud = $d.cloud
-        drift_type = $d.drift_type
-        severity = $d.severity
-        action = $d.action
-        resources = $d.resource_count
-        fail = $d.fail_count
-        warn = $d.warn_count
-    }
-}
-
-# Prepare payload for Power Automate
+# Build a sample payload from collected drift logs
 $payload = @{
-    summary = "Cloud Drift Report"
-    drifts = $summaryObjects
-} | ConvertTo-Json -Depth 10
+    summary = "Cloud Drift Notification"
+    drifts = @()
+}
 
-# Send to Power Automate flow
+# Try to read Azure drift results
+$azureFile = "data/azure/terraform-drift.json"
+if (Test-Path $azureFile) {
+    $azureDrift = Get-Content $azureFile -Raw | ConvertFrom-Json
+    $payload.drifts += @{
+        cloud      = "azure"
+        drift_type = if ($azureDrift.unsafe_count -gt 0) { "unsafe" } else { "safe" }
+        severity   = if ($azureDrift.unsafe_count -gt 0) { "high" } else { "low" }
+        action     = "remediate"
+        resources  = $azureDrift.total_resources
+        fail       = $azureDrift.fail_count
+        warn       = $azureDrift.warn_count
+    }
+}
+
+# Try to read AWS drift results
+$awsFile = "data/aws/terraform-drift.json"
+if (Test-Path $awsFile) {
+    $awsDrift = Get-Content $awsFile -Raw | ConvertFrom-Json
+    $payload.drifts += @{
+        cloud      = "aws"
+        drift_type = if ($awsDrift.unsafe_count -gt 0) { "unsafe" } else { "safe" }
+        severity   = if ($awsDrift.unsafe_count -gt 0) { "high" } else { "low" }
+        action     = "remediate"
+        resources  = $awsDrift.total_resources
+        fail       = $awsDrift.fail_count
+        warn       = $awsDrift.warn_count
+    }
+}
+
+# Convert payload to JSON
+$body = $payload | ConvertTo-Json -Depth 5
+
+# Send POST request
 try {
-    Invoke-RestMethod -Uri $env:TEAMS_WEBHOOK_URL -Method Post -Body $payload -ContentType 'application/json'
+    Invoke-RestMethod -Uri $env:TEAMS_WEBHOOK_URL -Method Post -Body $body -ContentType 'application/json'
     Write-Host "✅ Drift summary sent to Power Automate successfully."
 } catch {
-    Write-Host "❌ Failed to send to Power Automate: $_"
+    Write-Host "❌ Failed to send Teams notification."
+    Write-Host $_.Exception.Message
 }

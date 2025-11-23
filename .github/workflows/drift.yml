@@ -10,13 +10,9 @@ permissions:
   contents: read
 
 jobs:
-  ############################################
-  # ☁️ 1️⃣ AZURE DRIFT DETECTION
-  ############################################
   azure-drift:
     name: Azure Drift Detection & Auto-Remediation
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -68,14 +64,10 @@ jobs:
           path: ./data/azure/
           if-no-files-found: warn
 
-  ############################################
-  # ☁️ 2️⃣ AWS DRIFT DETECTION
-  ############################################
   aws-drift:
     name: AWS Drift Detection & Auto-Remediation
     runs-on: ubuntu-latest
     needs: azure-drift
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -98,7 +90,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ap-south-1
 
-      - name: Terraform Init (Correct order)
+      - name: Terraform Init
         run: |
           cd aws
           terraform init -reconfigure -input=false
@@ -128,15 +120,11 @@ jobs:
           path: ./data/aws/
           if-no-files-found: warn
 
-  ############################################
-  # 🤖 3️⃣ AI Drift Classifier (FULL PIPELINE)
-  ############################################
   ai-drift:
     name: AI Drift Classification
     runs-on: ubuntu-latest
     needs: [azure-drift, aws-drift]
     if: always()
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -175,19 +163,12 @@ jobs:
       - name: Predict Drift Risk
         run: python scripts/infer_drift_risk.py
 
-  ############################################
-  # 📩 TEAMS NOTIFICATION (Azure + AWS + AI)
-  ############################################
   notify-all:
     name: Send Combined Teams Notification
     runs-on: ubuntu-latest
     needs: [ai-drift]
     if: always()
-
     steps:
-      - name: Show workflow trigger
-        run: echo "Workflow triggered by ${{ github.event_name }}"
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -215,11 +196,4 @@ jobs:
         shell: pwsh
         env:
           TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
-        run: |
-          if (-Not (Test-Path ./scripts/notify-teams.ps1)) {
-            Write-Host "❌ notify-teams.ps1 not found!"
-            exit 1
-          }
-
-          Write-Host "✅ Running notify-teams.ps1"
-          ./scripts/notify-teams.ps1
+        run: ./scripts/notify-teams.ps1
