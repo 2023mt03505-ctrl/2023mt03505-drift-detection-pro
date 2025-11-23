@@ -251,7 +251,7 @@ jobs:
       - name: Download AI logs
         uses: actions/download-artifact@v4
         with:
-          name: data
+          name: ai-results
           path: data
         continue-on-error: true
 
