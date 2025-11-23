@@ -60,6 +60,11 @@ echo "📄 Drift JSON saved to: $LOGDIR/terraform-drift.json"
 
 resource_count=$(jq 'length' "$LOGDIR/terraform-drift.json")
 
+# STRICT FIX: Prevent empty numeric fields from breaking JSON
+resource_count=${resource_count:-0}
+fail_count=${fail_count:-0}
+warn_count=${warn_count:-0}
+
 # =========================
 # Run Conftest
 # =========================
