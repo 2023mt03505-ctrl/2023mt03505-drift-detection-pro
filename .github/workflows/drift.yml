@@ -65,7 +65,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: drift-logs-azure
-          path: ./azure/data/
+          path: ./data/azure/      # <- updated to match unified path
           if-no-files-found: warn
 
   ############################################
@@ -92,30 +92,12 @@ jobs:
           tar -xzf conftest.tgz
           sudo mv conftest /usr/local/bin/
 
-      # -----------------------------
-      # 🔐 Configure AWS Credentials BEFORE any Terraform Init
-      # -----------------------------
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ap-south-1
 
-      - name: Verify AWS OIDC Login
-        run: |
-          aws sts get-caller-identity
-
-      # -----------------------------
-      # 🔍 Backend Access Debug (Temporary)
-      # -----------------------------
-      - name: Debug S3 & DynamoDB access
-        run: |
-          aws s3 ls s3://st2023mt03505-tfstate-mtechproj --region ap-south-1 || true
-          aws dynamodb describe-table --table-name st2023mt03505-tf-lock-mtechproj --region ap-south-1 || true
-
-      # -----------------------------
-      # Terraform init AFTER OIDC
-      # -----------------------------
       - name: Terraform Init (Correct order)
         run: |
           cd aws
@@ -143,9 +125,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: drift-logs-aws
-          path: ./aws/data/
+          path: ./data/aws/      # <- updated to match unified path
           if-no-files-found: warn
-
 
   ############################################
   # 🤖 3️⃣ AI Drift Classifier (FULL PIPELINE)
@@ -160,9 +141,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ----------------------------------
-      # 📥 Download drift logs from both clouds
-      # ----------------------------------
       - name: Download Azure logs
         uses: actions/download-artifact@v4
         with:
@@ -177,17 +155,13 @@ jobs:
           path: data/aws
         continue-on-error: true
 
-
       - name: Download AI logs
         uses: actions/download-artifact@v4
         with:
           name: ai-results
-          path: data/ai      # <- make sure it matches what the Teams script expects
+          path: data/ai      # <- unified
         continue-on-error: true
 
-      # ----------------------------------
-      # 🐍 Python environment
-      # ----------------------------------
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -197,37 +171,23 @@ jobs:
         run: |
           pip install pandas scikit-learn joblib numpy
 
-      # ----------------------------------
-      # 🧬 1️⃣ Extract Features
-      # ----------------------------------
       - name: Extract Drift Features
         run: |
          python scripts/extract_drift_features.py data/azure/terraform-drift.json
          python scripts/extract_drift_features.py data/aws/terraform-drift.json
 
-      # ----------------------------------
-      # 🤖 2️⃣ Train Model
-      # ----------------------------------
       - name: Train Drift Classifier
         run: python scripts/train_drift_model.py
 
-      # ----------------------------------
-      # 🧠 3️⃣ Run Inference
-      # ----------------------------------
       - name: Predict Drift Risk
         run: python scripts/infer_drift_risk.py
 
-      # ----------------------------------
-      # 📤 Upload AI results for Teams notification
-      # ----------------------------------
       - name: Upload AI results
         uses: actions/upload-artifact@v4
         with:
           name: ai-results
-          path: data/ai/
+          path: data/ai/      # <- unified
           if-no-files-found: warn
-
-
 
   ############################################
   # 📩 TEAMS NOTIFICATION (Azure + AWS + AI)
@@ -246,21 +206,21 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: drift-logs-azure
-          path: azure/data
+          path: data/azure      # <- unified
         continue-on-error: true
 
       - name: Download AWS logs
         uses: actions/download-artifact@v4
         with:
           name: drift-logs-aws
-          path: aws/data
+          path: data/aws       # <- unified
         continue-on-error: true
 
       - name: Download AI logs
         uses: actions/download-artifact@v4
         with:
           name: ai-results
-          path: data/ai
+          path: data/ai       # <- unified
         continue-on-error: true
 
       - name: DEBUG — Show directory structure before Teams notify
