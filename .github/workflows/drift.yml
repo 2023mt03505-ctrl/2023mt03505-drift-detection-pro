@@ -216,7 +216,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ai-results
-          path: data/
+          path: data/ai/
           if-no-files-found: warn
 
 
@@ -252,7 +252,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ai-results
-          path: data
+          path: data/ai
         continue-on-error: true
 
       - name: DEBUG — Show directory structure before Teams notify
