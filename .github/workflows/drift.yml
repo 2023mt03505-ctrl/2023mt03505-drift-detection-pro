@@ -175,7 +175,7 @@ jobs:
       - name: Predict Drift Risk
         run: python scripts/infer_drift_risk.py
 
-  ############################################
+    ############################################
   # 📩 TEAMS NOTIFICATION (Azure + AWS + AI)
   ############################################
   notify-all:
@@ -212,6 +212,4 @@ jobs:
         shell: pwsh
         env:
           TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
-        run: |
-          # just call script directly; no nested pwsh
-          ./scripts/notify-teams.ps1
+        run: ./scripts/notify-teams.ps1

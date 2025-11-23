@@ -13,7 +13,7 @@ foreach ($c in $clouds) {
     if (Test-Path $file) {
         try {
             $json = Get-Content -Raw $file | ConvertFrom-Json
-            if ($json) { $allDrifts += $json }
+            if ($json -and $json.Count -gt 0) { $allDrifts += $json }
         } catch {
             Write-Warning "⚠ Could not parse $file. $_"
         }
@@ -22,7 +22,7 @@ foreach ($c in $clouds) {
     }
 }
 
-# Default message if no drift
+# If no drifts found, create default message
 if (-not $allDrifts -or $allDrifts.Count -eq 0) {
     $allDrifts = @(@{ 
         cloud="none"; 
@@ -36,7 +36,7 @@ if (-not $allDrifts -or $allDrifts.Count -eq 0) {
     })
 }
 
-# Build a readable summary with proper formatting
+# Build summary
 $summaryLines = @()
 foreach ($d in $allDrifts) {
     $summaryLines += @"
@@ -61,7 +61,7 @@ $card = @{
     "text"     = $summaryText
 }
 
-# Send the notification
+# Send the notification (always tries, even if empty)
 try {
     Invoke-RestMethod -Uri $env:TEAMS_WEBHOOK_URL -Method Post -Body ($card | ConvertTo-Json -Depth 10 -Compress) -ContentType 'application/json'
     Write-Host "✅ Teams notification sent successfully."
