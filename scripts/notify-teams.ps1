@@ -30,6 +30,22 @@ function Read-JsonSafe($cloud) {
     }
 }
 
+
+
+# -------------------------
+# CREATE EMPTY JSON FILES IF MISSING
+# -------------------------
+
+$azureFile = "data/azure/drift_results.json"
+if (-not (Test-Path $azureFile)) { New-Item -ItemType File -Path $azureFile | Out-Null; '{}' | Set-Content $azureFile }
+
+$awsFile   = "data/aws/drift_results.json"
+if (-not (Test-Path $awsFile))   { New-Item -ItemType File -Path $awsFile   | Out-Null; '{}' | Set-Content $awsFile }
+
+$aiFile    = "data/ai/drift_results.json"
+if (-not (Test-Path $aiFile))    { New-Item -ItemType File -Path $aiFile    | Out-Null; '{}' | Set-Content $aiFile }
+
+
 # -------------------------
 # Read JSON safely
 # -------------------------

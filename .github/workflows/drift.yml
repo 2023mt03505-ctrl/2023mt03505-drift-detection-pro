@@ -177,6 +177,14 @@ jobs:
           path: data/aws
         continue-on-error: true
 
+
+      - name: Download AI logs
+        uses: actions/download-artifact@v4
+        with:
+          name: ai-results
+          path: data/ai      # <- make sure it matches what the Teams script expects
+        continue-on-error: true
+
       # ----------------------------------
       # 🐍 Python environment
       # ----------------------------------
