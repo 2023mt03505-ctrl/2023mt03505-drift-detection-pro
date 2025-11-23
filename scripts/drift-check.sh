@@ -60,7 +60,6 @@ echo "📄 Drift JSON saved to: $LOGDIR/terraform-drift.json"
 
 resource_count=$(jq 'length' "$LOGDIR/terraform-drift.json")
 
-
 # =========================
 # Run Conftest
 # =========================
@@ -75,8 +74,18 @@ echo "$conftest_output" | tee "$LOGDIR/conftest_output.log"
 fail_count=$(echo "$conftest_output" | grep -cE "FAIL|❌" || echo 0)
 warn_count=$(echo "$conftest_output" | grep -cE "WARN|⚠️" || echo 0)
 
+# --------------------------
+# MINIMAL FIX FOR TEAMS JSON
+# --------------------------
 failed_resources=$(echo "$conftest_output" | grep -E "FAIL|❌" || true \
-  | awk '{print $2}' | jq -R -s -c 'split("\n")[:-1]')
+  | awk '{print $2}' \
+  | sed '/^$/d' \
+  | jq -R -s -c 'split("\n")[:-1]')
+
+if [[ -z "$failed_resources" || "$failed_resources" == "" ]]; then
+  failed_resources="[]"
+fi
+# --------------------------
 
 timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
