@@ -8,7 +8,6 @@ $webhook = $env:TEAMS_WEBHOOK_URL
 function Find-JsonFile {
     param($cloud)
 
-    # FINAL FIX — replaces your earlier candidates
     $preferred = "data/$cloud/drift_results.json"
 
     if (Test-Path $preferred) {
@@ -31,7 +30,7 @@ function Read-JsonSafe($cloud) {
 }
 
 # -------------------------
-# Read JSON
+# Read JSON safely
 # -------------------------
 $azure = Read-JsonSafe "azure"
 $aws   = Read-JsonSafe "aws"
@@ -58,17 +57,66 @@ $totalWarns = $az.warn_count + $aw.warn_count
 
 if ($totalFails -gt 0) { $overall = "❌ UNSAFE DRIFT" }
 elseif ($totalWarns -gt 0) { $overall = "⚠ SAFE DRIFT" }
-else { $overall = "✅ CLEAN — No Drift" }
+else { $overall = "✅ CLEAN — No Drift Detected" }
 
 $runUrl = "https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
 
 # -------------------------
-# Adaptive card
+# Adaptive Card
 # -------------------------
 $card = @{
-    "`$schema"="http://adaptivecards.io/schemas/adaptive-card.json"
-    type="AdaptiveCard"
-    version="1.4"
-    body=@(
-        @{ type="TextBlock"; size="Large"; weight="Bolder"; text="🌐 Multi-Cloud Drift Summary" },
-        @{ type="TextBlock"; wrap=$t
+    "`$schema" = "http://adaptivecards.io/schemas/adaptive-card.json"
+    type      = "AdaptiveCard"
+    version   = "1.4"
+    body      = @(
+        @{
+            type="TextBlock"
+            size="Large"
+            weight="Bolder"
+            text="🌐 Multi-Cloud Drift Summary"
+        },
+        @{
+            type="TextBlock"
+            wrap=$true
+            text="**Overall Status:** $overall"
+        },
+        @{
+            type="FactSet"
+            facts = @(
+                @{
+                    title="Azure:"
+                    value="Type: $($az.drift_type), Fails: $($az.fail_count), Warns: $($az.warn_count)"
+                }
+                @{
+                    title="AWS:"
+                    value="Type: $($aw.drift_type), Fails: $($aw.fail_count), Warns: $($aw.warn_count)"
+                }
+                @{
+                    title="AI Risk:"
+                    value="Severity: $($ai.severity)"
+                }
+            )
+        }
+    )
+    actions = @(
+        @{
+            type="Action.OpenUrl"
+            title="🔍 View Logs / Artifacts"
+            url=$runUrl
+        }
+    )
+}
+
+$payload = @{
+    type="message"
+    attachments=@(
+        @{
+            contentType="application/vnd.microsoft.card.adaptive"
+            content=$card
+        }
+    )
+} | ConvertTo-Json -Depth 10
+
+Invoke-RestMethod -Uri $webhook -Method POST -Body $payload -ContentType "application/json"
+
+Write-Host "Teams notification sent OK!"
