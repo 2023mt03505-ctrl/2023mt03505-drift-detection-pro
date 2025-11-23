@@ -4,44 +4,67 @@ if (-Not $env:TEAMS_WEBHOOK_URL) {
     exit 1
 }
 
-# Build a sample payload from collected drift logs
-$payload = @{
-    summary = "Cloud Drift Notification"
-    drifts = @()
+# Initialize the attachments array
+$attachments = @()
+
+# Helper function to create an Adaptive Card for a drift entry
+function New-DriftAdaptiveCard($cloud, $drift_type, $severity, $action, $resources, $fail, $warn) {
+    return @{
+        contentType = "application/vnd.microsoft.card.adaptive"
+        content = @{
+            type = "AdaptiveCard"
+            version = "1.2"
+            body = @(
+                @{
+                    type = "TextBlock"
+                    text = "$cloud Drift Report"
+                    weight = "Bolder"
+                    size = "Medium"
+                },
+                @{
+                    type = "FactSet"
+                    facts = @(
+                        @{ title = "Drift Type:"; value = $drift_type }
+                        @{ title = "Severity:"; value = $severity }
+                        @{ title = "Action:"; value = $action }
+                        @{ title = "Total Resources:"; value = "$resources" }
+                        @{ title = "Fail Count:"; value = "$fail" }
+                        @{ title = "Warn Count:"; value = "$warn" }
+                    )
+                }
+            )
+        }
+    }
 }
 
-# Try to read Azure drift results
+# Read Azure drift results
 $azureFile = "data/azure/terraform-drift.json"
 if (Test-Path $azureFile) {
     $azureDrift = Get-Content $azureFile -Raw | ConvertFrom-Json
-    $payload.drifts += @{
-        cloud      = "azure"
-        drift_type = if ($azureDrift.unsafe_count -gt 0) { "unsafe" } else { "safe" }
-        severity   = if ($azureDrift.unsafe_count -gt 0) { "high" } else { "low" }
-        action     = "remediate"
-        resources  = $azureDrift.total_resources
-        fail       = $azureDrift.fail_count
-        warn       = $azureDrift.warn_count
-    }
+    $attachments += New-DriftAdaptiveCard -cloud "Azure" `
+        -drift_type (if ($azureDrift.unsafe_count -gt 0) { "unsafe" } else { "safe" }) `
+        -severity (if ($azureDrift.unsafe_count -gt 0) { "high" } else { "low" }) `
+        -action "remediate" `
+        -resources $azureDrift.total_resources `
+        -fail $azureDrift.fail_count `
+        -warn $azureDrift.warn_count
 }
 
-# Try to read AWS drift results
+# Read AWS drift results
 $awsFile = "data/aws/terraform-drift.json"
 if (Test-Path $awsFile) {
     $awsDrift = Get-Content $awsFile -Raw | ConvertFrom-Json
-    $payload.drifts += @{
-        cloud      = "aws"
-        drift_type = if ($awsDrift.unsafe_count -gt 0) { "unsafe" } else { "safe" }
-        severity   = if ($awsDrift.unsafe_count -gt 0) { "high" } else { "low" }
-        action     = "remediate"
-        resources  = $awsDrift.total_resources
-        fail       = $awsDrift.fail_count
-        warn       = $awsDrift.warn_count
-    }
+    $attachments += New-DriftAdaptiveCard -cloud "AWS" `
+        -drift_type (if ($awsDrift.unsafe_count -gt 0) { "unsafe" } else { "safe" }) `
+        -severity (if ($awsDrift.unsafe_count -gt 0) { "high" } else { "low" }) `
+        -action "remediate" `
+        -resources $awsDrift.total_resources `
+        -fail $awsDrift.fail_count `
+        -warn $awsDrift.warn_count
 }
 
-# Convert payload to JSON
-$body = $payload | ConvertTo-Json -Depth 5
+# Build final payload
+$body = @{ attachments = $attachments } | ConvertTo-Json -Depth 10
 
 # Send POST request
 try {

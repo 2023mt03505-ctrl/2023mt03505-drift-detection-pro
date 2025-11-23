@@ -14,51 +14,36 @@ jobs:
     name: Azure Drift Detection & Auto-Remediation
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.7
-
-      - name: Azure login (OIDC)
-        uses: azure/login@v2
+      - uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Install Conftest (OPA)
-        run: |
+      - run: |
           CONFTEST_VERSION=0.52.0
           curl -L https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz -o conftest.tgz
           tar -xzf conftest.tgz
           sudo mv conftest /usr/local/bin/
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Install Python dependencies
-        run: |
+      - run: |
           sudo apt-get update -y
           sudo apt-get install -y python3-dev build-essential
           python3 -m pip install --upgrade pip setuptools wheel
           pip install pandas==2.2.3 scikit-learn==1.5.2 joblib==1.4.2 numpy==1.26.4
-
-      - name: Run Azure drift detection
-        run: bash scripts/drift-check.sh azure
+      - run: bash scripts/drift-check.sh azure
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           ARM_USE_OIDC: true
         continue-on-error: true
-
-      - name: Upload Azure drift logs
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: drift-logs-azure
           path: ./data/azure/
@@ -69,52 +54,35 @@ jobs:
     runs-on: ubuntu-latest
     needs: azure-drift
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.7
-
-      - name: Install Conftest (OPA)
-        run: |
+      - run: |
           CONFTEST_VERSION=0.52.0
           curl -L https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz -o conftest.tgz
           tar -xzf conftest.tgz
           sudo mv conftest /usr/local/bin/
-
-      - name: Configure AWS Credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ap-south-1
-
-      - name: Terraform Init
-        run: |
+      - run: |
           cd aws
           terraform init -reconfigure -input=false
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Install Python dependencies
-        run: |
+      - run: |
           sudo apt-get update -y
           sudo apt-get install -y python3-dev build-essential
           python3 -m pip install --upgrade pip setuptools wheel
           pip install pandas==2.2.3 scikit-learn==1.5.2 joblib==1.4.2 numpy==1.26.4
-
-      - name: Run AWS drift detection
-        run: bash scripts/drift-check.sh aws
+      - run: bash scripts/drift-check.sh aws
         env:
           AWS_REGION: ap-south-1
         continue-on-error: true
-
-      - name: Upload AWS drift logs
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: drift-logs-aws
           path: ./data/aws/
@@ -126,42 +94,26 @@ jobs:
     needs: [azure-drift, aws-drift]
     if: always()
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download Azure logs
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           name: drift-logs-azure
           path: data/azure
         continue-on-error: true
-
-      - name: Download AWS logs
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: drift-logs-aws
           path: data/aws
         continue-on-error: true
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-
-      - name: Install Python dependencies
-        run: |
-          pip install pandas scikit-learn joblib numpy
-
-      - name: Extract Drift Features
-        run: |
+          python-version: '3.11'
+      - run: pip install pandas scikit-learn joblib numpy
+      - run: |
           python scripts/extract_drift_features.py data/azure/terraform-drift.json
           python scripts/extract_drift_features.py data/aws/terraform-drift.json
-
-      - name: Train Drift Classifier
-        run: python scripts/train_drift_model.py
-
-      - name: Predict Drift Risk
-        run: python scripts/infer_drift_risk.py
+      - run: python scripts/train_drift_model.py
+      - run: python scripts/infer_drift_risk.py
 
   notify-all:
     name: Send Combined Teams Notification
@@ -169,31 +121,18 @@ jobs:
     needs: [ai-drift]
     if: always()
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download Azure drift logs
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           name: drift-logs-azure
           path: data/azure
         continue-on-error: true
-
-      - name: Download AWS drift logs
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: drift-logs-aws
           path: data/aws
         continue-on-error: true
-
-      - name: DEBUG — Show directory structure
-        run: |
-          echo "=== WORKSPACE TREE ==="
-          pwd
-          ls -R .
-
-      - name: Send Teams Adaptive Card via PowerShell
-        shell: pwsh
+      - shell: pwsh
         env:
           TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
         run: ./scripts/notify-teams.ps1
