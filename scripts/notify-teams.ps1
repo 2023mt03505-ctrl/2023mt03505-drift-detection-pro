@@ -24,14 +24,24 @@ foreach ($c in $clouds) {
 
 # Handle empty drift
 if (-not $allDrifts -or $allDrifts.Count -eq 0) {
-    $allDrifts = @(@{ message = "No drifts detected" })
+    $allDrifts = @(@{ cloud = "none"; drift_type = "none"; message = "No drifts detected" })
 }
 
-# Build human-readable text for Teams
-$textArray = $allDrifts | ForEach-Object {
-    $_ | ConvertTo-Json -Depth 5 -Compress
+# Build human-readable summary text
+$text = ""
+foreach ($d in $allDrifts) {
+    $cloud = $d.cloud
+    $type  = $d.drift_type
+    $severity = $d.severity
+    $action   = $d.action
+    $resource_count = $d.resource_count
+    $fail_count     = $d.fail_count
+    $warn_count     = $d.warn_count
+
+    $text += "☁️ **Cloud:** $cloud`n"
+    $text += "Drift Type: $type`nSeverity: $severity`nAction: $action`n"
+    $text += "Resources: $resource_count | Fail: $fail_count | Warn: $warn_count`n`n"
 }
-$text = $textArray -join "`n`n"
 
 # Build Teams MessageCard payload
 $card = @{
@@ -44,6 +54,9 @@ $card = @{
 }
 
 # Send the Teams notification
-Invoke-RestMethod -Uri $env:TEAMS_WEBHOOK_URL -Method Post -Body ($card | ConvertTo-Json -Depth 5) -ContentType 'application/json'
-
-Write-Host "✅ Teams notification sent with drift values."
+try {
+    Invoke-RestMethod -Uri $env:TEAMS_WEBHOOK_URL -Method Post -Body ($card | ConvertTo-Json -Depth 5) -ContentType 'application/json'
+    Write-Host "✅ Teams notification sent successfully."
+} catch {
+    Write-Host "❌ Failed to send Teams notification: $_"
+}
