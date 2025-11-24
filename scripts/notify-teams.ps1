@@ -37,37 +37,49 @@ function New-DriftAdaptiveCard($cloud, $drift_type, $severity, $action, $resourc
     }
 }
 
-# Read Azure drift results
+# Function to process drift JSON and calculate counts
+function Get-DriftCounts($filePath) {
+    if (-Not (Test-Path $filePath)) {
+        return @{ total=0; unsafe=0; safe=0 }
+    }
+
+    $driftData = Get-Content $filePath -Raw | ConvertFrom-Json
+
+    $total = $driftData.Count
+    $unsafe = ($driftData | Where-Object { $_.change.actions -contains "update" }).Count
+    $safe = ($driftData | Where-Object { $_.change.actions -contains "no-op" }).Count
+
+    # For simplicity, treat fail as unsafe, warn as safe
+    return @{ total=$total; unsafe=$unsafe; safe=$safe }
+}
+
+# Azure drift
 $azureFile = "data/azure/terraform-drift.json"
-if (Test-Path $azureFile) {
-    $azureDrift = Get-Content $azureFile -Raw | ConvertFrom-Json
-    $azureDriftType = if ($azureDrift.unsafe_count -gt 0) { "unsafe" } else { "safe" }
-    $azureSeverity = if ($azureDrift.unsafe_count -gt 0) { "high" } else { "low" }
+$azureCounts = Get-DriftCounts $azureFile
+$azureDriftType = if ($azureCounts.unsafe -gt 0) { "unsafe" } else { "safe" }
+$azureSeverity = if ($azureCounts.unsafe -gt 0) { "high" } else { "low" }
 
-    $attachments += New-DriftAdaptiveCard -cloud "Azure" `
-        -drift_type $azureDriftType `
-        -severity $azureSeverity `
-        -action "remediate" `
-        -resources $azureDrift.total_resources `
-        -fail $azureDrift.fail_count `
-        -warn $azureDrift.warn_count
-}
+$attachments += New-DriftAdaptiveCard -cloud "Azure" `
+    -drift_type $azureDriftType `
+    -severity $azureSeverity `
+    -action "remediate" `
+    -resources $azureCounts.total `
+    -fail $azureCounts.unsafe `
+    -warn $azureCounts.safe
 
-# Read AWS drift results
+# AWS drift
 $awsFile = "data/aws/terraform-drift.json"
-if (Test-Path $awsFile) {
-    $awsDrift = Get-Content $awsFile -Raw | ConvertFrom-Json
-    $awsDriftType = if ($awsDrift.unsafe_count -gt 0) { "unsafe" } else { "safe" }
-    $awsSeverity = if ($awsDrift.unsafe_count -gt 0) { "high" } else { "low" }
+$awsCounts = Get-DriftCounts $awsFile
+$awsDriftType = if ($awsCounts.unsafe -gt 0) { "unsafe" } else { "safe" }
+$awsSeverity = if ($awsCounts.unsafe -gt 0) { "high" } else { "low" }
 
-    $attachments += New-DriftAdaptiveCard -cloud "AWS" `
-        -drift_type $awsDriftType `
-        -severity $awsSeverity `
-        -action "remediate" `
-        -resources $awsDrift.total_resources `
-        -fail $awsDrift.fail_count `
-        -warn $awsDrift.warn_count
-}
+$attachments += New-DriftAdaptiveCard -cloud "AWS" `
+    -drift_type $awsDriftType `
+    -severity $awsSeverity `
+    -action "remediate" `
+    -resources $awsCounts.total `
+    -fail $awsCounts.unsafe `
+    -warn $awsCounts.safe
 
 # Build final payload
 $body = @{ attachments = $attachments } | ConvertTo-Json -Depth 10
@@ -75,7 +87,7 @@ $body = @{ attachments = $attachments } | ConvertTo-Json -Depth 10
 # Send POST request
 try {
     Invoke-RestMethod -Uri $env:TEAMS_WEBHOOK_URL -Method Post -Body $body -ContentType 'application/json'
-    Write-Host "✅ Drift summary sent to Power Automate successfully."
+    Write-Host "✅ Drift summary sent to Teams successfully."
 } catch {
     Write-Host "❌ Failed to send Teams notification."
     Write-Host $_.Exception.Message
