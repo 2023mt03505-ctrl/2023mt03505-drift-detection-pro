@@ -41,9 +41,12 @@ function New-DriftAdaptiveCard($cloud, $drift_type, $severity, $action, $resourc
 $azureFile = "data/azure/terraform-drift.json"
 if (Test-Path $azureFile) {
     $azureDrift = Get-Content $azureFile -Raw | ConvertFrom-Json
+    $azureDriftType = if ($azureDrift.unsafe_count -gt 0) { "unsafe" } else { "safe" }
+    $azureSeverity = if ($azureDrift.unsafe_count -gt 0) { "high" } else { "low" }
+
     $attachments += New-DriftAdaptiveCard -cloud "Azure" `
-        -drift_type (if ($azureDrift.unsafe_count -gt 0) { "unsafe" } else { "safe" }) `
-        -severity (if ($azureDrift.unsafe_count -gt 0) { "high" } else { "low" }) `
+        -drift_type $azureDriftType `
+        -severity $azureSeverity `
         -action "remediate" `
         -resources $azureDrift.total_resources `
         -fail $azureDrift.fail_count `
@@ -54,9 +57,12 @@ if (Test-Path $azureFile) {
 $awsFile = "data/aws/terraform-drift.json"
 if (Test-Path $awsFile) {
     $awsDrift = Get-Content $awsFile -Raw | ConvertFrom-Json
+    $awsDriftType = if ($awsDrift.unsafe_count -gt 0) { "unsafe" } else { "safe" }
+    $awsSeverity = if ($awsDrift.unsafe_count -gt 0) { "high" } else { "low" }
+
     $attachments += New-DriftAdaptiveCard -cloud "AWS" `
-        -drift_type (if ($awsDrift.unsafe_count -gt 0) { "unsafe" } else { "safe" }) `
-        -severity (if ($awsDrift.unsafe_count -gt 0) { "high" } else { "low" }) `
+        -drift_type $awsDriftType `
+        -severity $awsSeverity `
         -action "remediate" `
         -resources $awsDrift.total_resources `
         -fail $awsDrift.fail_count `
