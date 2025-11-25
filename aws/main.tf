@@ -28,12 +28,11 @@ variable "vpc_id" {
 ###########################################
 # 🔹 AWS S3 Bucket (Fixed — ACL removed)
 ###########################################
+# S3 Bucket
+# S3 Bucket (ACL not managed)
 resource "aws_s3_bucket" "storage" {
-  bucket        = "st2023mt03505-${var.region_index}"
+  bucket        = "st2023mt03505-0"
   force_destroy = true
-
-  # ❌ REMOVE ACL — bucket has ACLs disabled (BucketOwnerEnforced)
-  # acl = "private"
 
   tags = {
     Project     = "MTechDrift"
@@ -41,8 +40,16 @@ resource "aws_s3_bucket" "storage" {
   }
 }
 
-# 🔹 Apply AES-256 SSE using new recommended resource
-resource "aws_s3_bucket_server_side_encryption_configuration" "sse" {
+# Versioning
+resource "aws_s3_bucket_versioning" "storage_versioning" {
+  bucket = aws_s3_bucket.storage.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# Server-side encryption
+resource "aws_s3_bucket_server_side_encryption_configuration" "storage_sse" {
   bucket = aws_s3_bucket.storage.id
 
   rule {
@@ -51,6 +58,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "sse" {
     }
   }
 }
+
+
 
 ###########################################
 # 🔹 AWS Security Group
