@@ -1,75 +1,95 @@
-package terraform.aws_s3
+package drift.s3
 
-# ==========================
-# Allow drift detection only for modify actions
-# ==========================
-action_allowed(rc) {
-    rc.change.actions[_] == "update"
-}
-action_allowed(rc) {
-    rc.change.actions[_] == "replace"
-}
-action_allowed(rc) {
-    rc.change.actions[_] == "create"
-}
+# INPUT STRUCTURE (from terraform show -json)
+# input.resource_changes[name].change.after
 
-# ==========================
-# ❌ UNSAFE DRIFT — Bucket ACL becomes public
-# ==========================
+
+##################################################################
+## RULE 1: Bucket Versioning must be enabled (FAIL)
+##################################################################
 deny[msg] {
-    rc := input.resource_changes[_]
-    rc.type == "aws_s3_bucket"
-    action_allowed(rc)
+  some name
+  input.resource_changes[name].type == "aws_s3_bucket_versioning"
+  versioning := input.resource_changes[name].change.after
+  not versioning.enabled
+  msg := sprintf("❌ S3 Versioning disabled for bucket: %s", [name])
+}
 
-    rc.change.after.acl == "public-read"
-    msg := sprintf("❌ UNSAFE DRIFT: S3 bucket %s is public (public-read)", [rc.address])
+
+##################################################################
+## RULE 2: Bucket encryption must be AES256 or KMS (FAIL)
+##################################################################
+deny[msg] {
+  some name
+  input.resource_changes[name].type == "aws_s3_bucket_server_side_encryption_configuration"
+
+  enc := input.resource_changes[name].change.after.rule[0].apply_server_side_encryption_by_default
+  not enc.sse_algorithm
+
+  msg := sprintf("❌ Missing default SSE encryption on bucket: %s", [name])
 }
 
 deny[msg] {
-    rc := input.resource_changes[_]
-    rc.type == "aws_s3_bucket"
-    action_allowed(rc)
+  some name
+  input.resource_changes[name].type == "aws_s3_bucket_server_side_encryption_configuration"
 
-    rc.change.after.acl == "public-read-write"
-    msg := sprintf("❌ UNSAFE DRIFT: S3 bucket %s is public (public-read-write)", [rc.address])
+  enc := input.resource_changes[name].change.after.rule[0].apply_server_side_encryption_by_default
+  enc.sse_algorithm != "AES256"
+  enc.sse_algorithm != "aws:kms"
+
+  msg := sprintf("❌ Invalid encryption algorithm on bucket: %s (must be AES256 or KMS)", [name])
 }
 
-# ==========================
-# ❌ UNSAFE DRIFT — Missing encryption
-# ==========================
+
+##################################################################
+## RULE 3: Public Access MUST be blocked (FAIL)
+##################################################################
 deny[msg] {
-    rc := input.resource_changes[_]
-    rc.type == "aws_s3_bucket"
-    action_allowed(rc)
+  some name
+  input.resource_changes[name].type == "aws_s3_bucket_public_access_block"
 
-    not rc.change.after.server_side_encryption_configuration
-    msg := sprintf("❌ UNSAFE DRIFT: S3 bucket %s has no encryption enabled", [rc.address])
+  pab := input.resource_changes[name].change.after
+
+  pab.block_public_acls != true
+  msg := sprintf("❌ block_public_acls=false for bucket: %s", [name])
 }
 
-# ==========================
-# ❌ UNSAFE DRIFT — Versioning OFF
-# ==========================
 deny[msg] {
-    rc := input.resource_changes[_]
-    rc.type == "aws_s3_bucket"
-    action_allowed(rc)
+  some name
+  input.resource_changes[name].type == "aws_s3_bucket_public_access_block"
 
-    # versioning must exist AND must be Enabled
-    rc.change.after.versioning[0].status != "Enabled"
-    msg := sprintf("❌ UNSAFE DRIFT: Versioning is not enabled on %s", [rc.address])
+  pab := input.resource_changes[name].change.after
+
+  pab.block_public_policy != true
+  msg := sprintf("❌ block_public_policy=false for bucket: %s", [name])
 }
 
-# ==========================
-# ⚠ SAFE DRIFT — Only Tags changed
-# ==========================
-warn[msg] {
-    rc := input.resource_changes[_]
-    rc.type == "aws_s3_bucket"
-    action_allowed(rc)
 
-    before := rc.change.before.tags
-    after  := rc.change.after.tags
+##################################################################
+## RULE 4: Tag drift (Only WARNING — Do NOT FAIL)
+##################################################################
+warning[msg] {
+  some name
+  input.resource_changes[name].type == "aws_s3_bucket"
 
-    before != after
-    msg := sprintf("⚠ SAFE DRIFT: Tag changes detected on %s", [rc.address])
+  after_tags := input.resource_changes[name].change.after.tags
+  before_tags := input.resource_changes[name].change.before.tags
+
+  after_tags != before_tags
+
+  msg := sprintf("⚠️ Warning: S3 bucket tags drifted for %s", [name])
+}
+
+
+##################################################################
+## OUTPUT
+##################################################################
+# Failures
+deny_output[msg] {
+  msg := deny[_]
+}
+
+# Warnings
+warn_output[msg] {
+  msg := warning[_]
 }
